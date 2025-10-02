@@ -124,6 +124,17 @@
             background: #0a84ff;
         }
 
+        .status-bar.thinking {
+            background: rgba(175, 82, 222, 0.15);
+            border: 1px solid rgba(175, 82, 222, 0.3);
+            color: #af52de;
+        }
+
+        .status-bar.thinking .status-indicator {
+            background: #af52de;
+            animation: pulse 0.8s ease-in-out infinite;
+        }
+
         .mic-container {
             display: flex;
             justify-content: center;
@@ -591,7 +602,8 @@
 
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify(message));
-                    updateStatus('connected', 'Processing your message...');
+                    updateStatus('thinking', '🤔 Ani is thinking...');
+                    waveform.classList.add('active');
                 } else {
                     updateStatus('disconnected', 'Not connected to server');
                     addMessage('system', 'Error: Not connected to server', null);
