@@ -124,7 +124,7 @@ async def startup_event():
         tts_config = TTSConfig(
             engine="coqui",
             voice="tts_models/multilingual/multi-dataset/xtts_v2",
-            speaker_wav="voice_samples/ani_voice.wav"  # Anime-style voice sample
+            speaker_wav="voice_samples/lin.wav"  # Anime-style voice sample
         )
 
         tts_pipeline = TTSPipeline(tts_config)
