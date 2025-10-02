@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ani Debug Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #2d2d2d;
+            border-radius: 5px;
+        }
+        .pass { color: #4caf50; }
+        .fail { color: #f44336; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #log {
+            background: #000;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+            border: 1px solid #444;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px;
+        }
+        .log-info { color: #2196f3; }
+        .log-success { color: #4caf50; }
+        .log-error { color: #f44336; }
+        .log-warn { color: #ff9800; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Ani Speech Recognition Debug Tool</h1>
+
+    <div class="test-section">
+        <h2>System Checks</h2>
+        <div id="systemChecks">Running checks...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="testSpeechRecognition()">Test Speech Recognition</button>
+        <button onclick="testWebSocket()">Test WebSocket</button>
+        <button onclick="testFullFlow()">Test Full Flow</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Console Log</h2>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        let recognition = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // System checks on load
+        window.addEventListener('load', () => {
+            const checksDiv = document.getElementById('systemChecks');
+            let html = '';
+
+            // Check 1: Speech Recognition API
+            const hasSpeechRecognition = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
+            html += `<p class="${hasSpeechRecognition ? 'pass' : 'fail'}">
+                ✓ Speech Recognition API: ${hasSpeechRecognition ? 'Available' : 'Not Available'}
+            </p>`;
+
+            if (hasSpeechRecognition) {
+                const API = window.SpeechRecognition || window.webkitSpeechRecognition;
+                html += `<p class="pass">  → Using: ${API.name}</p>`;
+            }
+
+            // Check 2: WebSocket
+            const hasWebSocket = 'WebSocket' in window;
+            html += `<p class="${hasWebSocket ? 'pass' : 'fail'}">
+                ✓ WebSocket: ${hasWebSocket ? 'Available' : 'Not Available'}
+            </p>`;
+
+            // Check 3: Microphone permission
+            if (navigator.permissions) {
+                navigator.permissions.query({ name: 'microphone' }).then(result => {
+                    html += `<p class="${result.state === 'granted' ? 'pass' : 'warn'}">
+                        ✓ Microphone Permission: ${result.state}
+                    </p>`;
+                    checksDiv.innerHTML = html;
+                }).catch(() => {
+                    html += `<p class="warn">✓ Microphone Permission: unknown (will prompt when needed)</p>`;
+                    checksDiv.innerHTML = html;
+                });
+            } else {
+                html += `<p class="warn">✓ Microphone Permission: unknown (will prompt when needed)</p>`;
+                checksDiv.innerHTML = html;
+            }
+
+            log('Debug tool loaded', 'success');
+            log('Browser: ' + navigator.userAgent, 'info');
+        });
+
+        function testSpeechRecognition() {
+            log('=== Testing Speech Recognition ===', 'info');
+
+            const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognitionAPI) {
+                log('FAIL: Speech Recognition API not available!', 'error');
+                return;
+            }
+
+            log('Creating recognition instance...', 'info');
+            recognition = new SpeechRecognitionAPI();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            recognition.continuous = false;
+
+            recognition.onstart = () => {
+                log('✓ Recognition started - SPEAK NOW!', 'success');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                const confidence = event.results[0][0].confidence;
+                log(`✓ Recognized: "${transcript}"`, 'success');
+                log(`  Confidence: ${(confidence * 100).toFixed(1)}%`, 'info');
+            };
+
+            recognition.onerror = (event) => {
+                log(`✗ Error: ${event.error}`, 'error');
+                log(`  Details: ${event.message || 'No additional details'}`, 'warn');
+            };
+
+            recognition.onend = () => {
+                log('Recognition ended', 'info');
+            };
+
+            try {
+                recognition.start();
+                log('Starting recognition...', 'info');
+            } catch (error) {
+                log(`✗ Failed to start: ${error.message}`, 'error');
+            }
+        }
+
+        function testWebSocket() {
+            log('=== Testing WebSocket Connection ===', 'info');
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('WebSocket already connected, closing...', 'warn');
+                ws.close();
+            }
+
+            log('Connecting to ws://localhost:8000/ws...', 'info');
+            ws = new WebSocket('ws://localhost:8000/ws');
+
+            ws.onopen = () => {
+                log('✓ WebSocket connected!', 'success');
+                log(`  Ready state: ${ws.readyState} (OPEN)`, 'info');
+            };
+
+            ws.onclose = (event) => {
+                log(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'none'}`, 'warn');
+            };
+
+            ws.onerror = (error) => {
+                log('✗ WebSocket error!', 'error');
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onmessage = (event) => {
+                log(`← Received: ${event.data}`, 'info');
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`  Parsed: ${JSON.stringify(data, null, 2)}`, 'success');
+                } catch (e) {
+                    log('  (Not JSON)', 'warn');
+                }
+            };
+        }
+
+        function testFullFlow() {
+            log('=== Testing Full Speech → WebSocket Flow ===', 'info');
+
+            // First, ensure WebSocket is connected
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket not connected, connecting first...', 'warn');
+                testWebSocket();
+
+                // Wait for connection, then start speech recognition
+                setTimeout(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        startFullFlowSpeech();
+                    } else {
+                        log('✗ WebSocket failed to connect', 'error');
+                    }
+                }, 1000);
+            } else {
+                startFullFlowSpeech();
+            }
+        }
+
+        function startFullFlowSpeech() {
+            log('Starting speech recognition...', 'info');
+
+            const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognitionAPI) {
+                log('✗ Speech Recognition not available', 'error');
+                return;
+            }
+
+            recognition = new SpeechRecognitionAPI();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                log('✓ Listening... SPEAK NOW!', 'success');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                const confidence = event.results[0][0].confidence;
+
+                log(`✓ Recognized: "${transcript}" (${(confidence*100).toFixed(1)}%)`, 'success');
+
+                const message = {
+                    type: 'user_input',
+                    text: transcript
+                };
+
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    log(`→ Sending to server: ${JSON.stringify(message)}`, 'info');
+                    ws.send(JSON.stringify(message));
+                } else {
+                    log('✗ Cannot send - WebSocket not open!', 'error');
+                }
+            };
+
+            recognition.onerror = (event) => {
+                log(`✗ Recognition error: ${event.error}`, 'error');
+            };
+
+            recognition.onend = () => {
+                log('Recognition ended', 'info');
+            };
+
+            try {
+                recognition.start();
+            } catch (error) {
+                log(`✗ Failed to start: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-connect WebSocket on load
+        setTimeout(() => {
+            log('Auto-connecting WebSocket...', 'info');
+            testWebSocket();
+        }, 500);
+    </script>
+</body>
+</html>

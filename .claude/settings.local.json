@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py llm_pipeline.py)",
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py tts_pipeline.py)",
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py main_full.py)",
+      "Bash(ollama:*)",
+      "Bash(powershell:*)",
+      "Bash(python test:*)",
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py F:Anitest_ollama.py)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py -m pip install TTS)",
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py -m pip install coqui-tts)",
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py -u main_full.py)",
+      "Bash(curl:*)",
+      "Bash(/c/Users/johnn/AppData/Local/Programs/Python/Launcher/py -m pip install pypinyin)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,85 @@
+========================================
+QUICK INSTALL - COQUI TTS FOR ANI
+========================================
+
+STEP 1: Open PowerShell
+------------------------
+Right-click Start menu -> Windows PowerShell
+
+STEP 2: Navigate to Ani folder
+-------------------------------
+cd F:\Ani
+
+STEP 3: Install Coqui TTS
+--------------------------
+python -m pip install TTS
+
+(This will take 3-5 minutes, ~500MB download)
+
+STEP 4: Create voice samples folder
+------------------------------------
+mkdir voice_samples
+
+STEP 5: Update main_full.py
+----------------------------
+Open main_full.py in your text editor
+Find line ~103:
+    tts_config = TTSConfig(engine="edge", voice="en-US-AriaNeural")
+
+Change to:
+    tts_config = TTSConfig(
+        engine="coqui",
+        voice="tts_models/multilingual/multi-dataset/xtts_v2"
+    )
+
+Save the file.
+
+STEP 6: Restart Ani
+--------------------
+Stop the current server (Ctrl+C)
+Run: python main_full.py
+
+Look for: [OK] Coqui TTS initialized on cuda
+
+STEP 7: Test!
+--------------
+Open browser: http://localhost:8000
+Talk to Ani - she'll have a natural voice!
+
+========================================
+TROUBLESHOOTING
+========================================
+
+If "python -m pip install TTS" fails:
+- Make sure Python is in your PATH
+- Try: py -m pip install TTS
+
+If installation is too slow:
+- First time is always slow (big download)
+- Be patient, grab a coffee!
+
+If you get "CUDA out of memory":
+- Close other GPU apps
+- Or use Edge TTS instead (default)
+
+========================================
+OPTIONAL: ANIME VOICE CLONING
+========================================
+
+Want Ani to sound like your favorite anime character?
+
+1. Find a 3-6 second clear audio clip of the character
+2. Save as: F:\Ani\voice_samples\ani_voice.wav
+3. Update main_full.py line ~103 to:
+
+    tts_config = TTSConfig(
+        engine="coqui",
+        voice="tts_models/multilingual/multi-dataset/xtts_v2",
+        speaker_wav="voice_samples/ani_voice.wav"
+    )
+
+4. Restart Ani
+
+Done! Ani will now use the cloned voice!
+
+========================================

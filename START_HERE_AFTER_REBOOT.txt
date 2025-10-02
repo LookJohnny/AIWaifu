@@ -1,0 +1,33 @@
+========================================
+ANI - AFTER REBOOT QUICK START
+========================================
+
+You left off at: Installing Ollama AI model
+
+NEXT 3 STEPS:
+========================================
+
+1. Open PowerShell and run:
+   ollama pull llama3.1:8b
+
+   (Wait ~5 mins for download)
+
+2. Start Ani:
+   cd F:\Ani
+   python main_full.py
+
+3. Open browser:
+   http://localhost:8000
+
+========================================
+
+WHAT TO TELL ME:
+Just say: "I rebooted, what's next?"
+
+Or show me this file and I'll know exactly where you are!
+
+========================================
+
+FULL GUIDE: See AFTER_REBOOT.md
+
+Everything is in: F:\Ani
