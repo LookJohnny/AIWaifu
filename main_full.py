@@ -93,12 +93,13 @@ async def startup_event():
         # Choose LLM backend:
         # Option 1: Claude 3.5 Haiku (fast, intelligent, bilingual) ✨ ACTIVE
         # Note: Your API key doesn't have access to Sonnet, using Haiku instead
+        import os
         llm_config = LLMConfig(
             backend="anthropic",
             model="claude-3-5-haiku-20241022",
             max_tokens=150,  # Shorter responses = faster (default: 500)
             temperature=0.8,  # More creative
-            openai_api_key="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",
+            openai_api_key=os.getenv("CLAUDE_API_KEY", "your-api-key-here"),  # Set via environment variable
             character_name="Ani",
             character_personality="friendly and cheerful anime companion"
         )
