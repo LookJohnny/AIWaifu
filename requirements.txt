@@ -14,3 +14,6 @@ soundfile==0.12.1
 
 # Phase 3: LLM
 aiohttp==3.9.0
+
+# Phase 4: Animation (Day 2)
+python-osc==1.9.3  # VMC protocol for VSeeFace integration

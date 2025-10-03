@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VRM Expression Debug</title>
+</head>
+<body>
+    <h1>VRM Expression Debugger</h1>
+    <div id="output"></div>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+    <script type="module">
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+
+        async function debugVRM() {
+            const loader = new GLTFLoader();
+            loader.register((parser) => new VRMLoaderPlugin(parser));
+
+            try {
+                const gltf = await loader.loadAsync('/character/darkhair.vrm');
+                const vrm = gltf.userData.vrm;
+
+                const output = document.getElementById('output');
+                output.innerHTML = '<h2>VRM Loaded Successfully!</h2>';
+
+                // Check expression manager
+                if (vrm.expressionManager) {
+                    output.innerHTML += '<h3>Available Expressions:</h3><ul>';
+                    const expressions = Object.keys(vrm.expressionManager.expressionMap || {});
+                    expressions.forEach(exp => {
+                        output.innerHTML += `<li>${exp}</li>`;
+                    });
+                    output.innerHTML += '</ul>';
+
+                    // Test each expression
+                    output.innerHTML += '<h3>Testing Expressions:</h3>';
+                    expressions.forEach(exp => {
+                        try {
+                            vrm.expressionManager.setValue(exp, 1.0);
+                            output.innerHTML += `<p>✅ ${exp} - OK</p>`;
+                            vrm.expressionManager.setValue(exp, 0);
+                        } catch (error) {
+                            output.innerHTML += `<p>❌ ${exp} - Error: ${error.message}</p>`;
+                        }
+                    });
+                } else {
+                    output.innerHTML += '<p>❌ No expression manager found!</p>';
+                }
+
+                // Check blend shapes
+                output.innerHTML += '<h3>Blend Shape Groups:</h3><ul>';
+                vrm.scene.traverse((node) => {
+                    if (node.morphTargetDictionary) {
+                        output.innerHTML += `<li>Node: ${node.name}</li><ul>`;
+                        Object.keys(node.morphTargetDictionary).forEach(shape => {
+                            output.innerHTML += `<li>${shape}</li>`;
+                        });
+                        output.innerHTML += '</ul>';
+                    }
+                });
+                output.innerHTML += '</ul>';
+
+            } catch (error) {
+                document.getElementById('output').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        debugVRM();
+    </script>
+</body>
+</html>

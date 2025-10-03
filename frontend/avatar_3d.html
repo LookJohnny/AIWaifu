@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ani - AI Voice Companion</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+            color: white;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px 40px;
+            border-radius: 50px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        button.recording {
+            background: linear-gradient(135deg, #f44336, #e91e63);
+            animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
+            50% { box-shadow: 0 0 20px 10px rgba(244, 67, 54, 0); }
+        }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-connected {
+            background: #4CAF50;
+        }
+
+        .status-disconnected {
+            background: #f44336;
+        }
+
+        .status-thinking {
+            background: #FFC107;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        #emotion-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 15px;
+            font-size: 16px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            min-width: 150px;
+        }
+
+        #transcript {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 30px;
+            border-radius: 20px;
+            max-width: 80%;
+            text-align: center;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="loading">
+        <div class="spinner"></div>
+        Loading Ani...
+    </div>
+
+    <div id="status" style="display: none;">
+        <span class="status-dot status-disconnected"></span>
+        <span id="status-text">Disconnected</span>
+    </div>
+
+    <div id="emotion-display" style="display: none;">
+        <div style="opacity: 0.7; font-size: 12px; margin-bottom: 5px;">Current Emotion</div>
+        <div id="emotion-text">Neutral</div>
+    </div>
+
+    <div id="transcript"></div>
+
+    <div id="controls" style="display: none;">
+        <button id="talk-btn">Hold to Talk</button>
+        <span id="mic-status" style="font-size: 12px; opacity: 0.7;">Click and speak</span>
+    </div>
+
+    <!-- Three.js and VRM libraries -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Global state
+        let scene, camera, renderer, controls;
+        let currentVRM = null;
+        let ws = null;
+        let recognition = null;
+        let isListening = false;
+        let currentAudio = null;
+
+        // Emotion to blend shape mapping
+        const EMOTION_MAP = {
+            'joy': 'happy',
+            'sad': 'sad',
+            'anger': 'angry',
+            'surprise': 'surprised',
+            'neutral': 'neutral'
+        };
+
+        // Initialize Three.js scene
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x212121);
+
+            camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.4, 3);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const rimLight = new THREE.DirectionalLight(0x667eea, 0.5);
+            rimLight.position.set(-1, 1, -1);
+            scene.add(rimLight);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 1.2, 0);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 1;
+            controls.maxDistance = 10;
+            controls.maxPolarAngle = Math.PI / 2;
+            controls.update();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Load VRM model
+        async function loadVRM() {
+            const loader = new GLTFLoader();
+            loader.register((parser) => new VRMLoaderPlugin(parser));
+
+            try {
+                const gltf = await loader.loadAsync('/character/darkhair.vrm');
+                const vrm = gltf.userData.vrm;
+
+                if (currentVRM) {
+                    scene.remove(currentVRM.scene);
+                    VRMUtils.deepDispose(currentVRM.scene);
+                }
+
+                currentVRM = vrm;
+                scene.add(vrm.scene);
+                vrm.scene.rotation.y = Math.PI;
+
+                // Fix T-pose: Set natural standing pose
+                if (vrm.humanoid) {
+                    // Left arm - natural hanging position
+                    const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const leftLowerArm = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                    const leftHand = vrm.humanoid.getNormalizedBoneNode('leftHand');
+
+                    if (leftUpperArm) {
+                        leftUpperArm.rotation.set(0.3, 0, 0.8);  // Forward, none, down
+                    }
+                    if (leftLowerArm) {
+                        leftLowerArm.rotation.set(0, 0, 0.3);  // Slight bend
+                    }
+                    if (leftHand) {
+                        leftHand.rotation.set(-0.2, 0, 0);  // Natural hand angle
+                    }
+
+                    // Right arm - natural hanging position
+                    const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+                    const rightHand = vrm.humanoid.getNormalizedBoneNode('rightHand');
+
+                    if (rightUpperArm) {
+                        rightUpperArm.rotation.set(0.3, 0, -0.8);  // Forward, none, down
+                    }
+                    if (rightLowerArm) {
+                        rightLowerArm.rotation.set(0, 0, -0.3);  // Slight bend
+                    }
+                    if (rightHand) {
+                        rightHand.rotation.set(-0.2, 0, 0);  // Natural hand angle
+                    }
+
+                    // Slight hip rotation for natural stance
+                    const hips = vrm.humanoid.getNormalizedBoneNode('hips');
+                    if (hips) {
+                        hips.rotation.y = 0.02;
+                    }
+                }
+
+                console.log('[OK] VRM loaded successfully');
+                console.log('Available expressions:', vrm.expressionManager?.expressionMap ?
+                    Object.keys(vrm.expressionManager.expressionMap) : 'None');
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('controls').style.display = 'flex';
+                document.getElementById('status').style.display = 'block';
+                document.getElementById('emotion-display').style.display = 'block';
+
+            } catch (error) {
+                console.error('[ERROR] Failed to load VRM:', error);
+                document.getElementById('loading').innerHTML =
+                    '<div style="color: #f44336;">Failed to load character<br>Please check console</div>';
+            }
+        }
+
+        // Set expression
+        function setExpression(emotion, intensity = 1.0) {
+            if (!currentVRM || !currentVRM.expressionManager) {
+                console.warn('[WARN] No VRM or expression manager available');
+                return;
+            }
+
+            const expressionName = EMOTION_MAP[emotion] || 'neutral';
+
+            try {
+                currentVRM.expressionManager.setValue('happy', 0);
+                currentVRM.expressionManager.setValue('sad', 0);
+                currentVRM.expressionManager.setValue('angry', 0);
+                currentVRM.expressionManager.setValue('surprised', 0);
+                currentVRM.expressionManager.setValue('neutral', 0);
+
+                currentVRM.expressionManager.setValue(expressionName, intensity);
+
+                console.log(`[Expression] ${emotion} -> ${expressionName} (${intensity.toFixed(2)})`);
+
+                document.getElementById('emotion-text').textContent =
+                    emotion.charAt(0).toUpperCase() + emotion.slice(1) +
+                    ` (${Math.round(intensity * 100)}%)`;
+
+            } catch (error) {
+                console.error('[ERROR] Failed to set expression:', error);
+            }
+        }
+
+        // Set viseme for lip-sync
+        function setViseme(viseme, weight = 1.0) {
+            if (!currentVRM || !currentVRM.expressionManager) return;
+
+            const visemeMap = {
+                'A': 'aa', 'E': 'ee', 'I': 'ih', 'O': 'oh', 'U': 'ou'
+            };
+
+            const vrmViseme = visemeMap[viseme] || 'aa';
+
+            try {
+                Object.values(visemeMap).forEach(v => {
+                    currentVRM.expressionManager.setValue(v, 0);
+                });
+                currentVRM.expressionManager.setValue(vrmViseme, weight);
+            } catch (error) {
+                // Silently fail if visemes not available
+            }
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+
+            ws = new WebSocket('ws://localhost:8000/ws');
+
+            ws.onopen = () => {
+                console.log('[OK] WebSocket connected');
+                updateStatus('connected', 'Ready');
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('[WebSocket]', data);
+
+                if (data.type === 'emotion') {
+                    setExpression(data.emotion, data.intensity || 1.0);
+                }
+
+                if (data.type === 'audio') {
+                    playAudio(data.audio);
+                }
+
+                if (data.status === 'success' && data.data) {
+                    showTranscript(data.data.utterance, false);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('[ERROR] WebSocket error:', error);
+                updateStatus('disconnected', 'Error');
+            };
+
+            ws.onclose = () => {
+                console.log('[WARN] WebSocket disconnected');
+                updateStatus('disconnected', 'Disconnected');
+                ws = null;
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        // Update status display
+        function updateStatus(status, text) {
+            const statusDot = document.querySelector('.status-dot');
+            const statusText = document.getElementById('status-text');
+
+            statusDot.className = 'status-dot';
+
+            if (status === 'connected') {
+                statusDot.classList.add('status-connected');
+            } else if (status === 'thinking') {
+                statusDot.classList.add('status-thinking');
+            } else {
+                statusDot.classList.add('status-disconnected');
+            }
+
+            statusText.textContent = text;
+        }
+
+        // Show transcript
+        function showTranscript(text, isUser = false) {
+            const transcript = document.getElementById('transcript');
+            transcript.textContent = (isUser ? 'You: ' : 'Ani: ') + text;
+            transcript.style.display = 'block';
+
+            setTimeout(() => {
+                transcript.style.display = 'none';
+            }, 5000);
+        }
+
+        // Play audio with lip-sync and gestures
+        async function playAudio(audioBase64) {
+            if (currentAudio) {
+                currentAudio.pause();
+            }
+
+            try {
+                const audioData = atob(audioBase64);
+                const arrayBuffer = new ArrayBuffer(audioData.length);
+                const view = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < audioData.length; i++) {
+                    view[i] = audioData.charCodeAt(i);
+                }
+
+                const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(blob);
+                currentAudio = new Audio(audioUrl);
+
+                currentAudio.addEventListener('play', () => {
+                    animateMouth();
+                    startTalkingAnimation();  // Add body gestures while talking
+                });
+
+                currentAudio.addEventListener('ended', () => {
+                    stopMouth();
+                    stopTalkingAnimation();
+                    updateStatus('connected', 'Ready');
+                });
+
+                await currentAudio.play();
+
+            } catch (error) {
+                console.error('[ERROR] Failed to play audio:', error);
+                updateStatus('connected', 'Ready');
+            }
+        }
+
+        // Talking body animation (gestures, head movement)
+        let talkingAnimation = null;
+        function startTalkingAnimation() {
+            if (!currentVRM || !currentVRM.humanoid) return;
+
+            talkingAnimation = {
+                startTime: bodyAnimationTime,
+                gestureInterval: null
+            };
+
+            // Random hand gestures while talking
+            talkingAnimation.gestureInterval = setInterval(() => {
+                const gestures = ['nod', 'tilt', 'smallWave'];
+                const randomGesture = gestures[Math.floor(Math.random() * gestures.length)];
+                playGesture(randomGesture);
+            }, 2000);
+        }
+
+        function stopTalkingAnimation() {
+            if (talkingAnimation && talkingAnimation.gestureInterval) {
+                clearInterval(talkingAnimation.gestureInterval);
+                talkingAnimation = null;
+            }
+        }
+
+        // Simple mouth animation
+        let mouthAnimationFrame = null;
+        function animateMouth() {
+            const visemes = ['A', 'I', 'U', 'E', 'O'];
+            let index = 0;
+
+            function animate() {
+                setViseme(visemes[index], 0.7);
+                index = (index + 1) % visemes.length;
+                mouthAnimationFrame = setTimeout(animate, 100);
+            }
+
+            animate();
+        }
+
+        function stopMouth() {
+            if (mouthAnimationFrame) {
+                clearTimeout(mouthAnimationFrame);
+                mouthAnimationFrame = null;
+            }
+            setViseme('A', 0);
+        }
+
+        // Initialize Web Speech API
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+                console.error('[ERROR] Speech Recognition not supported');
+                document.getElementById('mic-status').textContent = 'Speech recognition not supported';
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'zh-CN';  // Support both Chinese and English
+
+            recognition.onstart = () => {
+                console.log('[OK] Speech recognition started');
+                isListening = true;
+                document.getElementById('talk-btn').classList.add('recording');
+                document.getElementById('mic-status').textContent = 'Listening...';
+                updateStatus('thinking', 'Listening...');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('[Speech]', transcript);
+
+                showTranscript(transcript, true);
+                sendTextToAI(transcript);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('[ERROR] Speech recognition error:', event.error);
+                document.getElementById('mic-status').textContent = 'Error: ' + event.error;
+                updateStatus('connected', 'Ready');
+                isListening = false;
+                document.getElementById('talk-btn').classList.remove('recording');
+            };
+
+            recognition.onend = () => {
+                console.log('[OK] Speech recognition ended');
+                isListening = false;
+                document.getElementById('talk-btn').classList.remove('recording');
+                document.getElementById('mic-status').textContent = 'Click and speak';
+            };
+        }
+
+        // Send text to AI
+        function sendTextToAI(text) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.error('[ERROR] WebSocket not connected');
+                updateStatus('disconnected', 'Not connected');
+                return;
+            }
+
+            updateStatus('thinking', 'Thinking...');
+
+            ws.send(JSON.stringify({
+                type: 'user_input',
+                text: text
+            }));
+
+            console.log('[OK] Text sent to AI:', text);
+        }
+
+        // Button event
+        document.getElementById('talk-btn').addEventListener('mousedown', () => {
+            if (recognition && !isListening) {
+                try {
+                    recognition.start();
+                } catch (error) {
+                    console.error('[ERROR] Failed to start recognition:', error);
+                }
+            }
+        });
+
+        document.getElementById('talk-btn').addEventListener('mouseup', () => {
+            if (recognition && isListening) {
+                recognition.stop();
+            }
+        });
+
+        // Also support touch for mobile
+        document.getElementById('talk-btn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (recognition && !isListening) {
+                try {
+                    recognition.start();
+                } catch (error) {
+                    console.error('[ERROR] Failed to start recognition:', error);
+                }
+            }
+        });
+
+        document.getElementById('talk-btn').addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (recognition && isListening) {
+                recognition.stop();
+            }
+        });
+
+        // Body animation state
+        let bodyAnimationTime = 0;
+        let isIdleAnimating = true;
+
+        // Natural idle animation system
+        let baseArmRotations = { left: null, right: null };
+
+        function updateIdleAnimation(deltaTime) {
+            if (!currentVRM || !isIdleAnimating || !currentVRM.humanoid) return;
+
+            bodyAnimationTime += deltaTime;
+
+            // 1. Breathing effect - chest expansion
+            const breathCycle = Math.sin(bodyAnimationTime * 1.2) * 0.015;
+            const chest = currentVRM.humanoid.getNormalizedBoneNode('chest');
+            const upperChest = currentVRM.humanoid.getNormalizedBoneNode('upperChest');
+            if (chest) {
+                chest.rotation.x = breathCycle * 0.3;
+            }
+            if (upperChest) {
+                upperChest.rotation.x = breathCycle * 0.5;
+            }
+
+            // 2. Weight shifting (subtle body sway)
+            const swayCycle = Math.sin(bodyAnimationTime * 0.4) * 0.03;
+            const hips = currentVRM.humanoid.getNormalizedBoneNode('hips');
+            const spine = currentVRM.humanoid.getNormalizedBoneNode('spine');
+            if (hips) {
+                hips.position.x = swayCycle * 0.5;
+                hips.rotation.z = swayCycle * 0.3;
+            }
+            if (spine) {
+                spine.rotation.z = -swayCycle * 0.2;
+            }
+
+            // 3. Natural head movement (looking around, blinking awareness)
+            const headSway = Math.sin(bodyAnimationTime * 0.35) * 0.08;
+            const headTilt = Math.sin(bodyAnimationTime * 0.28) * 0.03;
+            const headNod = Math.sin(bodyAnimationTime * 0.42) * 0.04;
+            const head = currentVRM.humanoid.getNormalizedBoneNode('head');
+            const neck = currentVRM.humanoid.getNormalizedBoneNode('neck');
+            if (head) {
+                head.rotation.y = headSway;
+                head.rotation.z = headTilt;
+                head.rotation.x = headNod;
+            }
+            if (neck) {
+                neck.rotation.y = headSway * 0.3;
+            }
+
+            // 4. Arm micro-movements (subtle swaying)
+            const armSway = Math.sin(bodyAnimationTime * 0.6) * 0.05;
+            const leftUpperArm = currentVRM.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightUpperArm = currentVRM.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+            if (leftUpperArm) {
+                // Store base rotation on first run
+                if (!baseArmRotations.left) {
+                    baseArmRotations.left = leftUpperArm.rotation.clone();
+                }
+                leftUpperArm.rotation.x = baseArmRotations.left.x + armSway * 0.5;
+                leftUpperArm.rotation.y = baseArmRotations.left.y + Math.sin(bodyAnimationTime * 0.5) * 0.02;
+            }
+
+            if (rightUpperArm) {
+                if (!baseArmRotations.right) {
+                    baseArmRotations.right = rightUpperArm.rotation.clone();
+                }
+                rightUpperArm.rotation.x = baseArmRotations.right.x - armSway * 0.5;
+                rightUpperArm.rotation.y = baseArmRotations.right.y - Math.sin(bodyAnimationTime * 0.5) * 0.02;
+            }
+
+            // 5. Finger micro-movements (very subtle)
+            const leftHand = currentVRM.humanoid.getNormalizedBoneNode('leftHand');
+            const rightHand = currentVRM.humanoid.getNormalizedBoneNode('rightHand');
+            const fingerWiggle = Math.sin(bodyAnimationTime * 2.0) * 0.02;
+            if (leftHand) {
+                leftHand.rotation.z = fingerWiggle;
+            }
+            if (rightHand) {
+                rightHand.rotation.z = -fingerWiggle;
+            }
+        }
+
+        // Gesture animation (wave, nod, etc.)
+        let gestureAnimation = null;
+        function playGesture(gestureName) {
+            if (!currentVRM || !currentVRM.humanoid) return;
+
+            const duration = 1.5; // seconds
+            const startTime = bodyAnimationTime;
+
+            gestureAnimation = {
+                name: gestureName,
+                startTime,
+                duration
+            };
+
+            setTimeout(() => {
+                gestureAnimation = null;
+            }, duration * 1000);
+        }
+
+        function updateGesture() {
+            if (!gestureAnimation || !currentVRM || !currentVRM.humanoid) return;
+
+            const elapsed = bodyAnimationTime - gestureAnimation.startTime;
+            const progress = Math.min(elapsed / gestureAnimation.duration, 1.0);
+            const easeInOut = progress < 0.5
+                ? 2 * progress * progress
+                : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+            const head = currentVRM.humanoid.getNormalizedBoneNode('head');
+            const neck = currentVRM.humanoid.getNormalizedBoneNode('neck');
+            const leftUpperArm = currentVRM.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightUpperArm = currentVRM.humanoid.getNormalizedBoneNode('rightUpperArm');
+            const leftLowerArm = currentVRM.humanoid.getNormalizedBoneNode('leftLowerArm');
+            const rightLowerArm = currentVRM.humanoid.getNormalizedBoneNode('rightLowerArm');
+
+            // Different gesture types
+            switch (gestureAnimation.name) {
+                case 'wave':
+                    if (rightUpperArm && rightLowerArm) {
+                        rightUpperArm.rotation.z = -0.3 + Math.sin(easeInOut * Math.PI * 4) * 0.5;
+                        rightUpperArm.rotation.x = -0.5;
+                        rightLowerArm.rotation.z = -Math.PI / 4 - Math.sin(easeInOut * Math.PI * 4) * 0.3;
+                    }
+                    break;
+
+                case 'nod':
+                    if (head) {
+                        head.rotation.x = Math.sin(easeInOut * Math.PI * 2) * 0.25;
+                    }
+                    if (neck) {
+                        neck.rotation.x = Math.sin(easeInOut * Math.PI * 2) * 0.1;
+                    }
+                    break;
+
+                case 'tilt':
+                    if (head) {
+                        head.rotation.z = Math.sin(easeInOut * Math.PI) * 0.2;
+                    }
+                    break;
+
+                case 'smallWave':
+                    if (rightLowerArm) {
+                        rightLowerArm.rotation.y = Math.sin(easeInOut * Math.PI * 3) * 0.2;
+                    }
+                    break;
+
+                case 'think':
+                    if (head) {
+                        head.rotation.y = Math.sin(easeInOut * Math.PI) * 0.15;
+                        head.rotation.x = 0.1;
+                    }
+                    if (rightUpperArm) {
+                        rightUpperArm.rotation.z = -0.5 + easeInOut * 0.2;
+                        rightUpperArm.rotation.x = 0.3;
+                    }
+                    break;
+
+                case 'shrug':
+                    const leftShoulder = currentVRM.humanoid.getNormalizedBoneNode('leftShoulder');
+                    const rightShoulder = currentVRM.humanoid.getNormalizedBoneNode('rightShoulder');
+                    const amplitude = Math.sin(easeInOut * Math.PI) * 0.2;
+                    if (leftShoulder) leftShoulder.rotation.z = amplitude;
+                    if (rightShoulder) rightShoulder.rotation.z = -amplitude;
+                    if (leftUpperArm) leftUpperArm.rotation.x = 0.3 + amplitude;
+                    if (rightUpperArm) rightUpperArm.rotation.x = 0.3 + amplitude;
+                    break;
+            }
+        }
+
+        // Animation loop
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const deltaTime = clock.getDelta();
+
+            if (currentVRM) {
+                currentVRM.update(deltaTime);
+                updateIdleAnimation(deltaTime);
+                updateGesture();
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Initialize on load
+        window.addEventListener('load', async () => {
+            initScene();
+            await loadVRM();
+            initSpeechRecognition();
+            connectWebSocket();
+            animate();
+        });
+
+        // Expose functions for debugging
+        window.ani = {
+            setExpression,
+            setViseme,
+            sendText: sendTextToAI,
+            playGesture,
+            vrm: () => currentVRM
+        };
+    </script>
+</body>
+</html>

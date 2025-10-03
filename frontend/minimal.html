@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Ani - Minimal Working Version</title>
+    <style>
+        body { margin: 0; background: #1a1a1a; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 8px;
+            max-width: 300px;
+        }
+        .log { margin: 3px 0; }
+        .ok { color: #4CAF50; }
+        .error { color: #f44336; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div class="log">初始化中...</div>
+        <div id="logs"></div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls, vrm;
+        const clock = new THREE.Clock();
+        let time = 0;
+
+        function log(msg, type = 'ok') {
+            console.log(msg);
+            const div = document.createElement('div');
+            div.className = `log ${type}`;
+            div.textContent = msg;
+            document.getElementById('logs').appendChild(div);
+        }
+
+        // 初始化
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x212121);
+        log('✓ Scene created');
+
+        camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.4, 3);
+        log('✓ Camera set');
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.body.appendChild(renderer.domElement);
+        log('✓ Renderer ready');
+
+        // 灯光
+        const light1 = new THREE.DirectionalLight(0xffffff, 1.5);
+        light1.position.set(1, 1, 1);
+        scene.add(light1);
+
+        const light2 = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(light2);
+        log('✓ Lights added');
+
+        // 控制
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.2, 0);
+        controls.update();
+        log('✓ Controls ready');
+
+        // 加载VRM
+        log('Loading VRM model...');
+        const loader = new GLTFLoader();
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+
+        loader.load(
+            '/character/darkhair.vrm',
+            (gltf) => {
+                vrm = gltf.userData.vrm;
+                scene.add(vrm.scene);
+                vrm.scene.rotation.y = Math.PI;
+
+                log('✓ VRM loaded!', 'ok');
+
+                if (vrm.humanoid) {
+                    log('✓ Humanoid found', 'ok');
+
+                    // 立即设置手臂姿势
+                    const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+                    if (leftArm) {
+                        leftArm.rotation.set(0, 0, 1.5);  // 强制向下
+                        log('✓ Left arm posed (0, 0, 1.5)');
+                    } else {
+                        log('✗ Left arm NOT found', 'error');
+                    }
+
+                    if (rightArm) {
+                        rightArm.rotation.set(0, 0, -1.5);  // 强制向下
+                        log('✓ Right arm posed (0, 0, -1.5)');
+                    } else {
+                        log('✗ Right arm NOT found', 'error');
+                    }
+                } else {
+                    log('✗ NO humanoid!', 'error');
+                }
+            },
+            (progress) => {
+                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                console.log(`Loading: ${percent}%`);
+            },
+            (error) => {
+                log(`✗ VRM load error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        );
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            time += delta;
+
+            if (vrm) {
+                vrm.update(delta);
+
+                // 简单的呼吸和摇摆
+                if (vrm.humanoid) {
+                    const chest = vrm.humanoid.getNormalizedBoneNode('chest');
+                    if (chest) {
+                        chest.rotation.x = Math.sin(time * 1.5) * 0.02;
+                    }
+
+                    const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+                    if (leftArm) {
+                        // 保持向下 + 微动
+                        leftArm.rotation.set(
+                            Math.sin(time * 0.8) * 0.05,
+                            0,
+                            1.5
+                        );
+                    }
+
+                    if (rightArm) {
+                        rightArm.rotation.set(
+                            Math.sin(time * 0.8 + Math.PI) * 0.05,
+                            0,
+                            -1.5
+                        );
+                    }
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+        log('✓ Animation loop started');
+    </script>
+</body>
+</html>

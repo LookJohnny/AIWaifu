@@ -207,6 +207,87 @@ class OpenAIBackend(LLMBackend):
             raise Exception(f"OpenAI generation failed: {e}")
 
 
+class AnthropicBackend(LLMBackend):
+    """Anthropic Claude API backend (Claude 3.5 Haiku, Sonnet, Opus)"""
+
+    def __init__(self, config: LLMConfig):
+        self.config = config
+        if not config.openai_api_key:
+            raise ValueError("Anthropic API key is required. Set openai_api_key in LLMConfig")
+        self.api_key = config.openai_api_key
+
+    async def is_available(self) -> bool:
+        """Check if Anthropic API is accessible"""
+        try:
+            from anthropic import AsyncAnthropic
+            client = AsyncAnthropic(api_key=self.api_key)
+            # Test with a minimal request
+            await client.messages.create(
+                model=self.config.model,
+                max_tokens=1,
+                messages=[{"role": "user", "content": "hi"}]
+            )
+            return True
+        except Exception:
+            return False
+
+    async def generate(self, prompt: str, schema: Optional[Dict] = None) -> Dict[str, Any]:
+        """Generate response using Anthropic Claude"""
+        from anthropic import AsyncAnthropic
+        import time
+
+        client = AsyncAnthropic(api_key=self.api_key)
+
+        # Build system prompt with JSON schema requirement
+        system_prompt = f"You are {self.config.character_name}, a {self.config.character_personality}."
+
+        if schema:
+            system_prompt += "\n\nYou MUST respond with valid JSON matching this exact format:\n"
+            system_prompt += """{
+  "utterance": "your response text here (max 500 chars)",
+  "emote": {
+    "type": "joy|sad|anger|surprise|neutral",
+    "intensity": 0.0-1.0
+  },
+  "intent": "SMALL_TALK|ANSWER|ASK|JOKE|TOOL_USE",
+  "phoneme_hints": []
+}"""
+
+        try:
+            print(f"[Claude] Sending request (model: {self.config.model})...")
+            start_time = time.time()
+
+            response = await client.messages.create(
+                model=self.config.model,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+                system=system_prompt,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+
+            response_text = response.content[0].text
+            elapsed = time.time() - start_time
+            print(f"[Claude] Response received in {elapsed:.2f}s")
+
+            # Parse JSON if schema was requested
+            if schema and response_text:
+                try:
+                    return json.loads(response_text)
+                except json.JSONDecodeError:
+                    import re
+                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                    if json_match:
+                        return json.loads(json_match.group())
+                    raise
+
+            return {"response": response_text}
+
+        except Exception as e:
+            raise Exception(f"Claude generation failed: {e}")
+
+
 class MockLLMBackend(LLMBackend):
     """Mock LLM for testing (fast, varied responses)"""
 
@@ -214,39 +295,61 @@ class MockLLMBackend(LLMBackend):
         self.config = config
         self.conversation_count = 0
 
-        # Many varied responses
+        # Bilingual responses (中文 + English)
         self.responses = {
-            "greetings": [
-                {"utterance": f"Hello! I'm {config.character_name}, your anime companion! How can I help you today?", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
-                {"utterance": "Hi there! It's great to see you! What's on your mind?", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+            "greetings_zh": [
+                {"utterance": f"你好呀！我是{config.character_name}，很高兴见到你！有什么我可以帮你的吗？", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+                {"utterance": "嗨！见到你真开心！今天过得怎么样？", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
+                {"utterance": "欢迎欢迎！我一直在等你来聊天呢！", "emote": {"type": "joy", "intensity": 0.85}, "intent": "SMALL_TALK"},
+                {"utterance": "你来啦！太好了，我们聊点什么吧！", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
+            ],
+            "greetings_en": [
+                {"utterance": f"Hello! I'm {config.character_name}! How can I help you today?", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
+                {"utterance": "Hi there! Great to see you! What's on your mind?", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
                 {"utterance": "Hey! I'm so excited to chat with you!", "emote": {"type": "joy", "intensity": 0.7}, "intent": "SMALL_TALK"},
-                {"utterance": "Welcome back! I've been waiting to talk to you!", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
             ],
-            "questions": [
-                {"utterance": "That's a really interesting question! From what I know, there are many different perspectives on that.", "emote": {"type": "surprise", "intensity": 0.6}, "intent": "ANSWER"},
-                {"utterance": "Hmm, let me think about that... I'd say it depends on how you look at it!", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ANSWER"},
-                {"utterance": "Great question! I love when you ask me things like that. The answer is quite fascinating actually!", "emote": {"type": "joy", "intensity": 0.7}, "intent": "ANSWER"},
-                {"utterance": "You know, I've wondered about that too! It's one of those things that makes you think, isn't it?", "emote": {"type": "surprise", "intensity": 0.6}, "intent": "ASK"},
+            "questions_zh": [
+                {"utterance": "这个问题很有意思！让我想想……其实有很多不同的角度可以看待这个问题。", "emote": {"type": "neutral", "intensity": 0.6}, "intent": "ANSWER"},
+                {"utterance": "哇，好问题！我也很好奇这个呢！", "emote": {"type": "surprise", "intensity": 0.7}, "intent": "ASK"},
+                {"utterance": "嗯……我觉得这要看具体情况！你觉得呢？", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ASK"},
             ],
-            "positive": [
-                {"utterance": "That's wonderful! I'm so happy to hear that!", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+            "questions_en": [
+                {"utterance": "That's a really interesting question! Let me think about that...", "emote": {"type": "surprise", "intensity": 0.6}, "intent": "ANSWER"},
+                {"utterance": "Great question! I love when you ask me things like that!", "emote": {"type": "joy", "intensity": 0.7}, "intent": "ANSWER"},
+            ],
+            "positive_zh": [
+                {"utterance": "太好了！我真为你高兴！", "emote": {"type": "joy", "intensity": 0.95}, "intent": "SMALL_TALK"},
+                {"utterance": "哇！听起来超棒的！", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+                {"utterance": "真的吗？太让人开心了！你让我的一天都变美好了！", "emote": {"type": "joy", "intensity": 1.0}, "intent": "SMALL_TALK"},
+            ],
+            "positive_en": [
+                {"utterance": "That's wonderful! I'm so happy for you!", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
                 {"utterance": "Amazing! That sounds really exciting!", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
-                {"utterance": "How delightful! You just made my day!", "emote": {"type": "joy", "intensity": 1.0}, "intent": "SMALL_TALK"},
             ],
-            "negative": [
-                {"utterance": "Oh no, I'm sorry to hear that. Is there anything I can do to help?", "emote": {"type": "sad", "intensity": 0.6}, "intent": "ASK"},
-                {"utterance": "That must be difficult. I'm here if you want to talk about it.", "emote": {"type": "sad", "intensity": 0.7}, "intent": "SMALL_TALK"},
+            "negative_zh": [
+                {"utterance": "哎呀……听起来有点难过。我能帮你什么吗？", "emote": {"type": "sad", "intensity": 0.7}, "intent": "ASK"},
+                {"utterance": "别太难过了，我一直在这里陪着你。", "emote": {"type": "sad", "intensity": 0.6}, "intent": "SMALL_TALK"},
             ],
-            "thanks": [
-                {"utterance": "You're very welcome! I'm always happy to help!", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
-                {"utterance": "No problem at all! That's what I'm here for!", "emote": {"type": "joy", "intensity": 0.7}, "intent": "SMALL_TALK"},
-                {"utterance": "Anytime! It makes me happy when I can help you!", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+            "negative_en": [
+                {"utterance": "Oh no, I'm sorry to hear that. Is there anything I can do?", "emote": {"type": "sad", "intensity": 0.6}, "intent": "ASK"},
             ],
-            "default": [
-                {"utterance": "I see! Tell me more about that, I'm curious!", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ASK"},
+            "thanks_zh": [
+                {"utterance": "不客气！我很乐意帮忙的！", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
+                {"utterance": "没事没事！这是我应该做的！", "emote": {"type": "joy", "intensity": 0.75}, "intent": "SMALL_TALK"},
+                {"utterance": "随时都可以！能帮到你我很开心！", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+            ],
+            "thanks_en": [
+                {"utterance": "You're very welcome! Always happy to help!", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
+            ],
+            "default_zh": [
+                {"utterance": "原来如此！跟我说说更多吧，我很好奇！", "emote": {"type": "neutral", "intensity": 0.6}, "intent": "ASK"},
+                {"utterance": "有意思！我之前没这样想过呢。", "emote": {"type": "surprise", "intensity": 0.6}, "intent": "SMALL_TALK"},
+                {"utterance": "嗯嗯，我明白你的意思！确实值得好好想想。", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "SMALL_TALK"},
+                {"utterance": "是这样啊！继续说说吧！", "emote": {"type": "joy", "intensity": 0.6}, "intent": "ASK"},
+            ],
+            "default_en": [
+                {"utterance": "I see! Tell me more, I'm curious!", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ASK"},
                 {"utterance": "That's interesting! I hadn't thought about it that way.", "emote": {"type": "surprise", "intensity": 0.5}, "intent": "SMALL_TALK"},
-                {"utterance": "Oh really? I'd love to hear more about your thoughts on this!", "emote": {"type": "joy", "intensity": 0.6}, "intent": "ASK"},
-                {"utterance": "I understand what you mean. It's definitely something worth thinking about!", "emote": {"type": "neutral", "intensity": 0.6}, "intent": "SMALL_TALK"},
             ]
         }
 
@@ -255,31 +358,43 @@ class MockLLMBackend(LLMBackend):
         return True
 
     async def generate(self, prompt: str, schema: Optional[Dict] = None) -> Dict[str, Any]:
-        """Generate varied mock response"""
+        """Generate varied mock response with language detection"""
         import random
+        import re
 
         # Simulate processing time
         await asyncio.sleep(0.1)
 
+        # Detect language (Chinese vs English)
+        has_chinese = bool(re.search(r'[\u4e00-\u9fff]', prompt))
+        lang_suffix = "_zh" if has_chinese else "_en"
+
         # Detect intent from prompt
         prompt_lower = prompt.lower()
 
-        # Choose response category
-        if any(word in prompt_lower for word in ["hello", "hi", "hey", "greetings"]):
+        # Choose response category (Chinese patterns)
+        if any(word in prompt for word in ["你好", "您好", "嗨", "hi", "hello", "hey"]):
             category = "greetings"
-        elif any(word in prompt_lower for word in ["?", "what", "how", "why", "when", "where", "who"]):
+        elif any(word in prompt for word in ["吗", "什么", "怎么", "为什么", "哪里", "谁", "?", "what", "how", "why"]):
             category = "questions"
-        elif any(word in prompt_lower for word in ["good", "great", "awesome", "happy", "excited", "love"]):
+        elif any(word in prompt for word in ["好", "棒", "开心", "高兴", "兴奋", "喜欢", "good", "great", "happy", "love"]):
             category = "positive"
-        elif any(word in prompt_lower for word in ["sad", "bad", "terrible", "awful", "hate", "angry"]):
+        elif any(word in prompt for word in ["难过", "伤心", "不好", "糟糕", "讨厌", "生气", "sad", "bad", "angry"]):
             category = "negative"
-        elif any(word in prompt_lower for word in ["thank", "thanks", "appreciate"]):
+        elif any(word in prompt for word in ["谢谢", "感谢", "thank"]):
             category = "thanks"
         else:
             category = "default"
 
-        # Get response list
-        responses = self.responses.get(category, self.responses["default"])
+        # Get response list with language suffix
+        full_category = category + lang_suffix
+        responses = self.responses.get(full_category, self.responses.get("default" + lang_suffix, self.responses.get("default_en", [])))
+
+        if not responses:
+            # Fallback to English default if category not found
+            responses = self.responses.get("default_en", [
+                {"utterance": "I see! Tell me more!", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ASK"}
+            ])
 
         # Pick response (rotate through them)
         response = responses[self.conversation_count % len(responses)]
@@ -326,8 +441,19 @@ class LLMPipeline:
         print(f"Initializing LLM pipeline (backend: {self.config.backend})...")
 
         try:
+            # Try Anthropic Claude
+            if self.config.backend == "anthropic":
+                anthropic_backend = AnthropicBackend(self.config)
+                if await anthropic_backend.is_available():
+                    self.backend = anthropic_backend
+                    print(f"[OK] Anthropic Claude backend initialized ({self.config.model})")
+                    self.is_ready = True
+                    return
+                else:
+                    print("[WARN] Anthropic API not available, falling back to Mock")
+
             # Try OpenAI
-            if self.config.backend == "openai":
+            elif self.config.backend == "openai":
                 openai = OpenAIBackend(self.config)
                 if await openai.is_available():
                     self.backend = openai

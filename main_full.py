@@ -15,6 +15,7 @@ import uvicorn
 from audio_pipeline import AudioPipeline, AudioConfig
 from llm_pipeline import LLMPipeline, LLMConfig
 from tts_pipeline import TTSPipeline, TTSConfig
+from animation_controller import AnimationController
 
 
 # JSON Schema Models
@@ -75,12 +76,13 @@ metrics = LatencyMetrics()
 audio_pipeline: Optional[AudioPipeline] = None
 llm_pipeline: Optional[LLMPipeline] = None
 tts_pipeline: Optional[TTSPipeline] = None
+animation_controller: Optional[AnimationController] = None
 
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize all pipelines on startup"""
-    global audio_pipeline, llm_pipeline, tts_pipeline
+    global audio_pipeline, llm_pipeline, tts_pipeline, animation_controller
 
     print("=" * 60)
     print("Initializing Ani v0 - Complete Voice Companion")
@@ -89,19 +91,39 @@ async def startup_event():
     # Initialize LLM pipeline
     try:
         # Choose LLM backend:
-        # Option 1: Ollama (local, free) - using Qwen2.5 for Chinese support
+        # Option 1: Claude 3.5 Haiku (fast, intelligent, bilingual) ✨ ACTIVE
+        # Note: Your API key doesn't have access to Sonnet, using Haiku instead
         llm_config = LLMConfig(
-            backend="ollama",
-            model="qwen2.5:7b",  # Bilingual EN+ZH model
+            backend="anthropic",
+            model="claude-3-5-haiku-20241022",
+            max_tokens=150,  # Shorter responses = faster (default: 500)
+            temperature=0.8,  # More creative
+            openai_api_key="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",
             character_name="Ani",
             character_personality="friendly and cheerful anime companion"
         )
 
-        # Option 2: OpenAI (GPT-4, GPT-3.5-turbo) - requires API key with credits
+        # Option 2: Mock (fast, for testing 3D avatar)
+        # llm_config = LLMConfig(
+        #     backend="mock",
+        #     model="mock",
+        #     character_name="Ani",
+        #     character_personality="friendly and cheerful anime companion"
+        # )
+
+        # Option 3: Ollama (local, free) - using Qwen2.5 for Chinese support
+        # llm_config = LLMConfig(
+        #     backend="ollama",
+        #     model="qwen2.5:7b",  # Bilingual EN+ZH model
+        #     character_name="Ani",
+        #     character_personality="friendly and cheerful anime companion"
+        # )
+
+        # Option 4: OpenAI (GPT-4, GPT-3.5-turbo) - requires API key with credits
         # llm_config = LLMConfig(
         #     backend="openai",
         #     model="gpt-4o-mini",
-        #     openai_api_key="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",
+        #     openai_api_key="YOUR_OPENAI_KEY_HERE",
         #     character_name="Ani",
         #     character_personality="friendly and cheerful anime companion"
         # )
@@ -114,18 +136,23 @@ async def startup_event():
     # Initialize TTS pipeline
     try:
         # Choose TTS engine:
-        # - "edge": Fast, robotic Microsoft voice (default, always works)
-        # - "coqui": Natural anime voice (requires: pip install TTS)
+        # - "edge": Fast (<1s), natural Microsoft voice, supports Chinese ✨ FASTEST
+        # - "coqui": High-quality (5-7s), voice cloning, custom voice
 
-        # Option 1: Edge TTS (current - robotic voice)
-        # tts_config = TTSConfig(engine="edge", voice="en-US-AriaNeural")
-
-        # Option 2: Coqui XTTS-v2 (voice cloning, multi-lingual EN+ZH)
+        # Option 1: Edge TTS - FAST MODE ✨ ACTIVE (少女风格 - 活泼开朗)
         tts_config = TTSConfig(
-            engine="coqui",
-            voice="tts_models/multilingual/multi-dataset/xtts_v2",
-            speaker_wav="voice_samples/wzy.wav"  # Anime-style voice sample
+            engine="edge",
+            voice="zh-CN-XiaoyiNeural",  # 少女 - 活泼开朗，青春洋溢
+            rate="+8%",  # Slightly faster speech
+            pitch="+5Hz"  # Higher pitch for youthful voice
         )
+
+        # Option 2: Coqui XTTS-v2 (SLOW but highest quality voice cloning)
+        # tts_config = TTSConfig(
+        #     engine="coqui",
+        #     voice="tts_models/multilingual/multi-dataset/xtts_v2",
+        #     speaker_wav="voice_samples/female_high_clear_1.wav"
+        # )
 
         tts_pipeline = TTSPipeline(tts_config)
         await tts_pipeline.initialize()
@@ -140,15 +167,67 @@ async def startup_event():
     except Exception as e:
         print(f"[WARN] Audio pipeline initialization failed: {e}")
 
+    # Initialize Animation Controller (3D character via VSeeFace)
+    try:
+        animation_controller = AnimationController(host="127.0.0.1", port=39539)
+        if animation_controller.connected:
+            print("[OK] Animation controller connected to VSeeFace")
+        else:
+            print("[INFO] VSeeFace not running - animations disabled (voice will work)")
+    except Exception as e:
+        print(f"[WARN] Animation controller initialization failed: {e}")
+        animation_controller = None
+
     print("=" * 60)
     print("[OK] Ani v0 Server Ready!")
     print("=" * 60)
 
 
+# Mount static files for VRM model (must be before routes)
+app.mount("/character", StaticFiles(directory="character"), name="character")
+
 @app.get("/")
 async def root():
-    """Serve the frontend"""
-    return FileResponse("frontend/index.html")
+    """Serve the complete 3D avatar with all features"""
+    return FileResponse("frontend/complete.html")
+
+@app.get("/debug")
+async def debug_vrm():
+    """VRM expression debugger"""
+    return FileResponse("debug_vrm.html")
+
+@app.get("/pose")
+async def pose_test():
+    """Pose adjustment tool"""
+    return FileResponse("frontend/pose_test.html")
+
+@app.get("/pro")
+async def avatar_pro():
+    """Professional animation system"""
+    return FileResponse("frontend/avatar_pro.html")
+
+@app.get("/vrma")
+async def avatar_vrma():
+    """VRMA professional motion capture animation (experimental)"""
+    return FileResponse("frontend/avatar_vrma.html")
+
+@app.get("/stable")
+async def avatar_stable():
+    """Stable animation with natural pose - uses proven avatar_3d system"""
+    return FileResponse("frontend/avatar_3d.html")
+
+@app.get("/fixed")
+async def avatar_fixed():
+    """FIXED VERSION - Debug and properly working animations"""
+    return FileResponse("frontend/avatar_fixed.html")
+
+@app.get("/test")
+async def avatar_test():
+    """Simple test page for VRM pose debugging"""
+    return FileResponse("frontend/test_simple.html")
+
+# Mount animations directory
+app.mount("/animations", StaticFiles(directory="animations"), name="animations")
 
 
 @app.get("/health")
@@ -158,7 +237,8 @@ async def health():
         "pipelines": {
             "audio": audio_pipeline.vad.is_loaded if audio_pipeline else False,
             "llm": llm_pipeline.is_ready if llm_pipeline else False,
-            "tts": tts_pipeline.is_ready if tts_pipeline else False
+            "tts": tts_pipeline.is_ready if tts_pipeline else False,
+            "animation": animation_controller.connected if animation_controller else False
         },
         "latency_stats": {
             stage: metrics.get_stats(stage)
@@ -255,7 +335,40 @@ async def websocket_endpoint(websocket: WebSocket):
                             print(f"[Emote] {llm_response['emote']['type']} ({llm_response['emote']['intensity']})")
                             print(f"[LLM Latency] {llm_latency:.0f}ms")
 
-                            # Send LLM response to client
+                            # Trigger character expression animation
+                            if animation_controller and animation_controller.connected:
+                                emotion = llm_response['emote']['type']
+                                intensity = llm_response['emote']['intensity']
+                                asyncio.create_task(animation_controller.set_expression(emotion, intensity))
+
+                            # Send emotion to frontend
+                            await websocket.send_json({
+                                "type": "emotion",
+                                "emotion": llm_response['emote']['type'],
+                                "intensity": llm_response['emote']['intensity']
+                            })
+
+                            # Generate and send audio
+                            if tts_pipeline and tts_pipeline.is_ready:
+                                tts_start = time.time()
+                                tts_result = await tts_pipeline.synthesize_with_phonemes(llm_response["utterance"])
+                                tts_latency = (time.time() - tts_start) * 1000
+                                metrics.add_metric("tts", tts_latency)
+
+                                # Convert audio to base64
+                                import base64
+                                audio_base64 = base64.b64encode(tts_result["audio"]).decode('utf-8')
+
+                                # Send audio to frontend
+                                await websocket.send_json({
+                                    "type": "audio",
+                                    "audio": audio_base64,
+                                    "text": llm_response["utterance"]
+                                })
+
+                                print(f"[TTS Latency] {tts_latency:.0f}ms")
+
+                            # Send complete response
                             response = {
                                 "status": "success",
                                 "validated": True,
@@ -315,4 +428,5 @@ if __name__ == "__main__":
     print("Starting Ani v0 - Complete Voice Companion Server...")
     print("Open your browser to: http://localhost:8000")
     print("=" * 60)
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

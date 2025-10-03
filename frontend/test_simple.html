@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>VRM Test - 最简单测试</title>
+    <style>
+        body { margin: 0; background: #333; color: white; font-family: monospace; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 400px;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        .ok { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warn { color: #FFC107; }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            background: #667eea;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background: #764ba2; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>VRM 动画测试</h2>
+        <div id="log">初始化中...</div>
+        <br>
+        <button onclick="testPose1()">测试姿势1: T-Pose复原</button>
+        <button onclick="testPose2()">测试姿势2: 手臂向下</button>
+        <button onclick="testPose3()">测试姿势3: 自然站姿</button>
+        <br>
+        <button onclick="toggleAnimation()">切换动画: <span id="animStatus">关闭</span></button>
+        <button onclick="logBones()">显示骨骼信息</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin } from '@pixiv/three-vrm';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls;
+        let vrm = null;
+        let animating = false;
+        let animTime = 0;
+
+        const log = document.getElementById('log');
+        function addLog(msg, type = 'ok') {
+            console.log(msg);
+            log.innerHTML += `<div class="${type}">${msg}</div>`;
+        }
+
+        // 初始化场景
+        function init() {
+            addLog('创建场景...', 'ok');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x212121);
+
+            camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.4, 3);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            document.body.appendChild(renderer.domElement);
+
+            // 灯光
+            const light1 = new THREE.DirectionalLight(0xffffff, 1.5);
+            light1.position.set(1, 1, 1);
+            scene.add(light1);
+
+            const light2 = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(light2);
+
+            // 控制器
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 1.2, 0);
+            controls.update();
+
+            addLog('场景创建完成 ✓', 'ok');
+            loadVRM();
+        }
+
+        // 加载VRM
+        async function loadVRM() {
+            addLog('加载VRM模型...', 'warn');
+            const loader = new GLTFLoader();
+            loader.register((parser) => new VRMLoaderPlugin(parser));
+
+            try {
+                const gltf = await loader.loadAsync('/character/darkhair.vrm');
+                vrm = gltf.userData.vrm;
+                scene.add(vrm.scene);
+                vrm.scene.rotation.y = Math.PI;
+
+                addLog('VRM加载成功 ✓', 'ok');
+                addLog(`Humanoid: ${vrm.humanoid ? 'YES ✓' : 'NO ✗'}`, vrm.humanoid ? 'ok' : 'error');
+
+                if (vrm.humanoid) {
+                    const bones = [
+                        'hips', 'spine', 'chest', 'neck', 'head',
+                        'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
+                        'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'
+                    ];
+
+                    let foundBones = 0;
+                    bones.forEach(boneName => {
+                        const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                        if (bone) foundBones++;
+                    });
+
+                    addLog(`找到骨骼: ${foundBones}/${bones.length}`, foundBones > 10 ? 'ok' : 'warn');
+                }
+
+                addLog('=== 初始状态 ===', 'warn');
+                logCurrentPose();
+
+                window.vrm = vrm; // 暴露到全局方便调试
+
+            } catch (error) {
+                addLog(`VRM加载失败: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        // 记录当前姿势
+        function logCurrentPose() {
+            if (!vrm || !vrm.humanoid) return;
+
+            const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+            if (leftArm) {
+                addLog(`左臂: (${leftArm.rotation.x.toFixed(2)}, ${leftArm.rotation.y.toFixed(2)}, ${leftArm.rotation.z.toFixed(2)})`, 'ok');
+            }
+            if (rightArm) {
+                addLog(`右臂: (${rightArm.rotation.x.toFixed(2)}, ${rightArm.rotation.y.toFixed(2)}, ${rightArm.rotation.z.toFixed(2)})`, 'ok');
+            }
+        }
+
+        // 测试姿势1: T-Pose复原
+        window.testPose1 = function() {
+            if (!vrm || !vrm.humanoid) return;
+            addLog('=== 测试姿势1: T-Pose复原 ===', 'warn');
+
+            const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+            if (leftArm) {
+                leftArm.rotation.set(0, 0, 0);
+                addLog('左臂设置为 (0, 0, 0)', 'ok');
+            }
+            if (rightArm) {
+                rightArm.rotation.set(0, 0, 0);
+                addLog('右臂设置为 (0, 0, 0)', 'ok');
+            }
+
+            logCurrentPose();
+        };
+
+        // 测试姿势2: 手臂向下
+        window.testPose2 = function() {
+            if (!vrm || !vrm.humanoid) return;
+            addLog('=== 测试姿势2: 手臂向下 ===', 'warn');
+
+            const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+            if (leftArm) {
+                leftArm.rotation.set(0, 0, 1.5);  // Z轴旋转向下
+                addLog('左臂设置为 (0, 0, 1.5)', 'ok');
+            }
+            if (rightArm) {
+                rightArm.rotation.set(0, 0, -1.5);
+                addLog('右臂设置为 (0, 0, -1.5)', 'ok');
+            }
+
+            logCurrentPose();
+        };
+
+        // 测试姿势3: 自然站姿
+        window.testPose3 = function() {
+            if (!vrm || !vrm.humanoid) return;
+            addLog('=== 测试姿势3: 自然站姿 ===', 'warn');
+
+            const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+            if (leftArm) {
+                leftArm.rotation.set(0.3, 0, 0.8);
+                addLog('左臂设置为 (0.3, 0, 0.8)', 'ok');
+            }
+            if (rightArm) {
+                rightArm.rotation.set(0.3, 0, -0.8);
+                addLog('右臂设置为 (0.3, 0, -0.8)', 'ok');
+            }
+
+            logCurrentPose();
+        };
+
+        // 切换动画
+        window.toggleAnimation = function() {
+            animating = !animating;
+            document.getElementById('animStatus').textContent = animating ? '开启' : '关闭';
+            addLog(`动画: ${animating ? '开启' : '关闭'}`, 'warn');
+        };
+
+        // 显示骨骼信息
+        window.logBones = function() {
+            if (!vrm || !vrm.humanoid) return;
+            addLog('=== 所有骨骼信息 ===', 'warn');
+
+            const bones = [
+                'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
+                'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
+                'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'
+            ];
+
+            bones.forEach(boneName => {
+                const bone = vrm.humanoid.getNormalizedBoneNode(boneName);
+                if (bone) {
+                    const r = bone.rotation;
+                    addLog(`${boneName}: (${r.x.toFixed(2)}, ${r.y.toFixed(2)}, ${r.z.toFixed(2)})`, 'ok');
+                } else {
+                    addLog(`${boneName}: 未找到`, 'error');
+                }
+            });
+        };
+
+        // 动画循环
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+
+            if (vrm) {
+                vrm.update(delta);
+
+                // 如果开启了动画
+                if (animating && vrm.humanoid) {
+                    animTime += delta;
+
+                    // 简单的呼吸动画
+                    const chest = vrm.humanoid.getNormalizedBoneNode('chest');
+                    if (chest) {
+                        chest.rotation.x = Math.sin(animTime * 1.5) * 0.02;
+                    }
+
+                    // 手臂微动
+                    const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+
+                    if (leftArm) {
+                        const sway = Math.sin(animTime * 0.8) * 0.05;
+                        leftArm.rotation.x = 0.3 + sway;
+                    }
+                    if (rightArm) {
+                        const sway = Math.sin(animTime * 0.8 + Math.PI) * 0.05;
+                        rightArm.rotation.x = 0.3 + sway;
+                    }
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 启动
+        window.addEventListener('load', () => {
+            init();
+            animate();
+        });
+    </script>
+</body>
+</html>

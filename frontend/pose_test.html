@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ani Pose Tester</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        #canvas-container {
+            width: 70vw;
+            height: 100vh;
+            float: left;
+        }
+        #controls-panel {
+            width: 30vw;
+            height: 100vh;
+            float: right;
+            background: #2a2a2a;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .slider-group {
+            margin: 15px 0;
+        }
+        .slider-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        .value-display {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #667eea;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        h3 {
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="controls-panel">
+        <h2>Ani Pose Tester</h2>
+
+        <h3>Left Arm</h3>
+        <div class="slider-group">
+            <label>Upper Arm X: <span id="left-upper-x-val" class="value-display">0</span></label>
+            <input type="range" id="left-upper-x" min="-3.14" max="3.14" step="0.05" value="0.3">
+        </div>
+        <div class="slider-group">
+            <label>Upper Arm Y: <span id="left-upper-y-val" class="value-display">0</span></label>
+            <input type="range" id="left-upper-y" min="-3.14" max="3.14" step="0.05" value="0">
+        </div>
+        <div class="slider-group">
+            <label>Upper Arm Z: <span id="left-upper-z-val" class="value-display">0</span></label>
+            <input type="range" id="left-upper-z" min="-3.14" max="3.14" step="0.05" value="0.8">
+        </div>
+        <div class="slider-group">
+            <label>Lower Arm Z: <span id="left-lower-z-val" class="value-display">0</span></label>
+            <input type="range" id="left-lower-z" min="-3.14" max="3.14" step="0.05" value="0.3">
+        </div>
+
+        <h3>Right Arm</h3>
+        <div class="slider-group">
+            <label>Upper Arm X: <span id="right-upper-x-val" class="value-display">0</span></label>
+            <input type="range" id="right-upper-x" min="-3.14" max="3.14" step="0.05" value="0.3">
+        </div>
+        <div class="slider-group">
+            <label>Upper Arm Y: <span id="right-upper-y-val" class="value-display">0</span></label>
+            <input type="range" id="right-upper-y" min="-3.14" max="3.14" step="0.05" value="0">
+        </div>
+        <div class="slider-group">
+            <label>Upper Arm Z: <span id="right-upper-z-val" class="value-display">0</span></label>
+            <input type="range" id="right-upper-z" min="-3.14" max="3.14" step="0.05" value="-0.8">
+        </div>
+        <div class="slider-group">
+            <label>Lower Arm Z: <span id="right-lower-z-val" class="value-display">0</span></label>
+            <input type="range" id="right-lower-z" min="-3.14" max="3.14" step="0.05" value="-0.3">
+        </div>
+
+        <button onclick="resetPose()">Reset to Default</button>
+        <button onclick="copyValues()">Copy Values to Console</button>
+        <button onclick="testAnimation()">Test Idle Animation</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.167.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.167.0/examples/jsm/",
+            "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.1.2/lib/three-vrm.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        let scene, camera, renderer, controls;
+        let currentVRM = null;
+        let testAnimationEnabled = false;
+
+        // Initialize scene
+        const container = document.getElementById('canvas-container');
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x212121);
+
+        camera = new THREE.PerspectiveCamera(30, container.clientWidth / container.clientHeight, 0.1, 100);
+        camera.position.set(0, 1.4, 3);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        container.appendChild(renderer.domElement);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.2, 0);
+        controls.update();
+
+        // Load VRM
+        const loader = new GLTFLoader();
+        loader.register((parser) => new VRMLoaderPlugin(parser));
+
+        loader.load('/character/darkhair.vrm', (gltf) => {
+            const vrm = gltf.userData.vrm;
+            currentVRM = vrm;
+            scene.add(vrm.scene);
+            vrm.scene.rotation.y = Math.PI;
+
+            console.log('[OK] VRM loaded');
+            updatePoseFromSliders();
+        });
+
+        // Slider listeners
+        const sliders = [
+            { id: 'left-upper-x', val: 'left-upper-x-val', update: updatePoseFromSliders },
+            { id: 'left-upper-y', val: 'left-upper-y-val', update: updatePoseFromSliders },
+            { id: 'left-upper-z', val: 'left-upper-z-val', update: updatePoseFromSliders },
+            { id: 'left-lower-z', val: 'left-lower-z-val', update: updatePoseFromSliders },
+            { id: 'right-upper-x', val: 'right-upper-x-val', update: updatePoseFromSliders },
+            { id: 'right-upper-y', val: 'right-upper-y-val', update: updatePoseFromSliders },
+            { id: 'right-upper-z', val: 'right-upper-z-val', update: updatePoseFromSliders },
+            { id: 'right-lower-z', val: 'right-lower-z-val', update: updatePoseFromSliders }
+        ];
+
+        sliders.forEach(s => {
+            const slider = document.getElementById(s.id);
+            const valDisplay = document.getElementById(s.val);
+            slider.addEventListener('input', () => {
+                valDisplay.textContent = parseFloat(slider.value).toFixed(2);
+                s.update();
+            });
+            valDisplay.textContent = parseFloat(slider.value).toFixed(2);
+        });
+
+        function updatePoseFromSliders() {
+            if (!currentVRM || !currentVRM.humanoid) return;
+
+            const leftUpperArm = currentVRM.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const leftLowerArm = currentVRM.humanoid.getNormalizedBoneNode('leftLowerArm');
+            const rightUpperArm = currentVRM.humanoid.getNormalizedBoneNode('rightUpperArm');
+            const rightLowerArm = currentVRM.humanoid.getNormalizedBoneNode('rightLowerArm');
+
+            if (leftUpperArm) {
+                leftUpperArm.rotation.set(
+                    parseFloat(document.getElementById('left-upper-x').value),
+                    parseFloat(document.getElementById('left-upper-y').value),
+                    parseFloat(document.getElementById('left-upper-z').value)
+                );
+            }
+            if (leftLowerArm) {
+                leftLowerArm.rotation.z = parseFloat(document.getElementById('left-lower-z').value);
+            }
+            if (rightUpperArm) {
+                rightUpperArm.rotation.set(
+                    parseFloat(document.getElementById('right-upper-x').value),
+                    parseFloat(document.getElementById('right-upper-y').value),
+                    parseFloat(document.getElementById('right-upper-z').value)
+                );
+            }
+            if (rightLowerArm) {
+                rightLowerArm.rotation.z = parseFloat(document.getElementById('right-lower-z').value);
+            }
+        }
+
+        window.resetPose = function() {
+            document.getElementById('left-upper-x').value = 0.3;
+            document.getElementById('left-upper-y').value = 0;
+            document.getElementById('left-upper-z').value = 0.8;
+            document.getElementById('left-lower-z').value = 0.3;
+            document.getElementById('right-upper-x').value = 0.3;
+            document.getElementById('right-upper-y').value = 0;
+            document.getElementById('right-upper-z').value = -0.8;
+            document.getElementById('right-lower-z').value = -0.3;
+
+            sliders.forEach(s => {
+                const slider = document.getElementById(s.id);
+                const valDisplay = document.getElementById(s.val);
+                valDisplay.textContent = parseFloat(slider.value).toFixed(2);
+            });
+            updatePoseFromSliders();
+        }
+
+        window.copyValues = function() {
+            const values = {
+                leftUpperArm: {
+                    x: parseFloat(document.getElementById('left-upper-x').value),
+                    y: parseFloat(document.getElementById('left-upper-y').value),
+                    z: parseFloat(document.getElementById('left-upper-z').value)
+                },
+                leftLowerArm: {
+                    z: parseFloat(document.getElementById('left-lower-z').value)
+                },
+                rightUpperArm: {
+                    x: parseFloat(document.getElementById('right-upper-x').value),
+                    y: parseFloat(document.getElementById('right-upper-y').value),
+                    z: parseFloat(document.getElementById('right-upper-z').value)
+                },
+                rightLowerArm: {
+                    z: parseFloat(document.getElementById('right-lower-z').value)
+                }
+            };
+            console.log('=== Arm Rotation Values ===');
+            console.log(JSON.stringify(values, null, 2));
+            console.log('\n=== Code to use: ===');
+            console.log(`leftUpperArm.rotation.set(${values.leftUpperArm.x}, ${values.leftUpperArm.y}, ${values.leftUpperArm.z});`);
+            console.log(`leftLowerArm.rotation.set(0, 0, ${values.leftLowerArm.z});`);
+            console.log(`rightUpperArm.rotation.set(${values.rightUpperArm.x}, ${values.rightUpperArm.y}, ${values.rightUpperArm.z});`);
+            console.log(`rightLowerArm.rotation.set(0, 0, ${values.rightLowerArm.z});`);
+            alert('Values copied to console! (Press F12)');
+        }
+
+        window.testAnimation = function() {
+            testAnimationEnabled = !testAnimationEnabled;
+            console.log('Idle animation:', testAnimationEnabled ? 'ON' : 'OFF');
+        }
+
+        // Animation loop
+        const clock = new THREE.Clock();
+        let animTime = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const delta = clock.getDelta();
+            if (currentVRM) {
+                currentVRM.update(delta);
+
+                if (testAnimationEnabled) {
+                    animTime += delta;
+                    const breathCycle = Math.sin(animTime * 1.2) * 0.015;
+                    const chest = currentVRM.humanoid.getNormalizedBoneNode('chest');
+                    if (chest) chest.rotation.x = breathCycle * 0.3;
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+    </script>
+</body>
+</html>

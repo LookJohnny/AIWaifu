@@ -1,9 +1,12 @@
 # Python
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 *.so
 .Python
+env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -16,18 +19,20 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual Environment
-venv/
-ENV/
-env/
-.venv
+# TTS Models (large files)
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# Audio files (generated)
+*.mp3
+*.ogg
+temp_*.wav
 
 # IDE
 .vscode/
@@ -35,30 +40,28 @@ env/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
+Thumbs.db
 
 # Logs
 *.log
-logs/
+server_log.txt
 
-# Environment variables
+# API Keys (IMPORTANT)
 .env
-.env.local
+config.local.json
+*_key.txt
 
-# API Keys (sensitive)
-*_api_key.txt
-credentials.json
-
-# Model caches and checkpoints
-models/
-checkpoints/
+# Cache
 .cache/
+*.cache
+
+# Node modules
+node_modules/
 
 # Temporary files
+nul
 temp/
 tmp/
-*.tmp
-
-# OS files
-Thumbs.db
-desktop.ini
