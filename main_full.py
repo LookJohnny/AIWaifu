@@ -92,14 +92,13 @@ async def startup_event():
     try:
         # Choose LLM backend:
         # Option 1: Claude 3.5 Haiku (fast, intelligent, bilingual) ✨ ACTIVE
-        # Note: Your API key doesn't have access to Sonnet, using Haiku instead
         import os
         llm_config = LLMConfig(
             backend="anthropic",
             model="claude-3-5-haiku-20241022",
-            max_tokens=150,  # Shorter responses = faster (default: 500)
+            max_tokens=250,  # Increased to prevent JSON truncation (was 150)
             temperature=0.8,  # More creative
-            openai_api_key=os.getenv("CLAUDE_API_KEY", "your-api-key-here"),  # Set via environment variable
+            openai_api_key="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",
             character_name="Ani",
             character_personality="friendly and cheerful anime companion"
         )
@@ -116,6 +115,8 @@ async def startup_event():
         # llm_config = LLMConfig(
         #     backend="ollama",
         #     model="qwen2.5:7b",  # Bilingual EN+ZH model
+        #     max_tokens=150,  # Shorter responses = faster
+        #     temperature=0.8,  # More creative
         #     character_name="Ani",
         #     character_personality="friendly and cheerful anime companion"
         # )
@@ -190,7 +191,7 @@ app.mount("/character", StaticFiles(directory="character"), name="character")
 @app.get("/")
 async def root():
     """Serve the complete 3D avatar with all features"""
-    return FileResponse("frontend/complete.html")
+    return FileResponse("frontend/complete_v2.html")
 
 @app.get("/debug")
 async def debug_vrm():
@@ -332,9 +333,14 @@ async def websocket_endpoint(websocket: WebSocket):
                             llm_latency = (time.time() - llm_start) * 1000
                             metrics.add_metric("llm", llm_latency)
 
-                            print(f"[Ani] {llm_response['utterance']}")
+                            utterance = llm_response['utterance']
+                            print(f"[Ani] {utterance}")
                             print(f"[Emote] {llm_response['emote']['type']} ({llm_response['emote']['intensity']})")
                             print(f"[LLM Latency] {llm_latency:.0f}ms")
+
+                            # Debug: Check if utterance is empty
+                            if not utterance or len(utterance.strip()) == 0:
+                                print(f"[WARN] Empty utterance! Raw response: {llm_response}")
 
                             # Trigger character expression animation
                             if animation_controller and animation_controller.connected:
@@ -348,6 +354,14 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "emotion": llm_response['emote']['type'],
                                 "intensity": llm_response['emote']['intensity']
                             })
+
+                            # Send gesture to frontend if present
+                            if 'gesture' in llm_response and llm_response['gesture'] != 'none':
+                                await websocket.send_json({
+                                    "type": "gesture",
+                                    "gesture": llm_response['gesture']
+                                })
+                                print(f"[Gesture] {llm_response['gesture']}")
 
                             # Generate and send audio
                             if tts_pipeline and tts_pipeline.is_ready:

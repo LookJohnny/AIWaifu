@@ -246,12 +246,15 @@ class AnthropicBackend(LLMBackend):
             system_prompt += """{
   "utterance": "your response text here (max 500 chars)",
   "emote": {
-    "type": "joy|sad|anger|surprise|neutral",
-    "intensity": 0.0-1.0
+    "type": "joy|sad|anger|surprise|neutral|excited|confused|embarrassed|determined|relaxed",
+    "intensity": 0.8
   },
   "intent": "SMALL_TALK|ANSWER|ASK|JOKE|TOOL_USE",
+  "gesture": "none|wave|nod|shake_head|think|celebrate",
   "phoneme_hints": []
-}"""
+}
+
+CRITICAL: Respond with ONLY the JSON object. No markdown, no explanation, no code blocks."""
 
         try:
             print(f"[Claude] Sending request (model: {self.config.model})...")
@@ -267,20 +270,36 @@ class AnthropicBackend(LLMBackend):
                 ]
             )
 
-            response_text = response.content[0].text
+            response_text = response.content[0].text.strip()
             elapsed = time.time() - start_time
             print(f"[Claude] Response received in {elapsed:.2f}s")
 
             # Parse JSON if schema was requested
             if schema and response_text:
                 try:
+                    # Remove markdown code blocks if present
+                    if response_text.startswith('```'):
+                        response_text = response_text.split('```')[1]
+                        if response_text.startswith('json'):
+                            response_text = response_text[4:]
+                        response_text = response_text.strip()
+
+                    # Try direct parse
                     return json.loads(response_text)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    print(f"[WARN] JSON parse error: {e}")
+                    print(f"[DEBUG] Raw response: {response_text[:200]}")
+
+                    # Try to extract JSON from text
                     import re
-                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
                     if json_match:
-                        return json.loads(json_match.group())
-                    raise
+                        try:
+                            return json.loads(json_match.group())
+                        except:
+                            pass
+
+                    raise Exception(f"Failed to parse JSON: {str(e)[:100]}")
 
             return {"response": response_text}
 
@@ -417,7 +436,7 @@ class LLMPipeline:
         self.backend: Optional[LLMBackend] = None
         self.is_ready = False
 
-        # JSON schema for Ani responses
+        # JSON schema for Ani responses - Enhanced with more emotions
         self.response_schema = {
             "type": "object",
             "properties": {
@@ -425,13 +444,14 @@ class LLMPipeline:
                 "emote": {
                     "type": "object",
                     "properties": {
-                        "type": {"type": "string", "enum": ["joy", "sad", "anger", "surprise", "neutral"]},
+                        "type": {"type": "string", "enum": ["joy", "sad", "anger", "surprise", "neutral", "excited", "confused", "embarrassed", "determined", "relaxed"]},
                         "intensity": {"type": "number", "minimum": 0, "maximum": 1}
                     },
                     "required": ["type", "intensity"]
                 },
                 "intent": {"type": "string", "enum": ["SMALL_TALK", "ANSWER", "ASK", "JOKE", "TOOL_USE"]},
-                "phoneme_hints": {"type": "array"}
+                "phoneme_hints": {"type": "array"},
+                "gesture": {"type": "string", "enum": ["none", "wave", "nod", "shake_head", "think", "celebrate"]}
             },
             "required": ["utterance", "emote", "intent"]
         }
@@ -493,12 +513,39 @@ You must respond with valid JSON matching this exact format:
 {
   "utterance": "your response text here (max 500 chars)",
   "emote": {
-    "type": "joy|sad|anger|surprise|neutral",
+    "type": "joy|sad|anger|surprise|neutral|excited|confused|embarrassed|determined|relaxed",
     "intensity": 0.0-1.0
   },
   "intent": "SMALL_TALK|ANSWER|ASK|JOKE|TOOL_USE",
+  "gesture": "none|wave|nod|shake_head|think|celebrate",
   "phoneme_hints": []
 }
+
+Emotion guide:
+- joy: happy, cheerful (basic happiness)
+- excited: very enthusiastic, energetic (stronger than joy)
+- sad: unhappy, melancholy
+- anger: frustrated, upset
+- surprise: shocked, amazed
+- confused: puzzled, uncertain
+- embarrassed: shy, flustered
+- determined: focused, resolute
+- relaxed: calm, peaceful
+- neutral: no strong emotion
+
+Gesture guide:
+- wave: for greetings
+- nod: for agreement/understanding
+- shake_head: for disagreement/confusion
+- think: for pondering/considering
+- celebrate: for excitement/achievement
+
+IMPORTANT RULES:
+- DO NOT use emojis (❤️, 😊, etc.) or emoticons ((*^▽^*), ^_^, etc.) in utterance
+- Use ONLY plain text in utterance - emojis will be read aloud by TTS and sound weird
+- Express emotions through words and the "emote" field, not symbols
+- Keep utterance SHORT (1-2 sentences max, under 100 characters) - this is a voice conversation
+- Be concise and natural like a real conversation
 """
 
         prompt = f"""You are {self.config.character_name}, a {self.config.character_personality}.
@@ -508,9 +555,41 @@ User said: "{user_input}"
 
 {schema_description}
 
+CRITICAL: Keep utterance SHORT (1-2 sentences max). This is voice conversation - be concise!
+
 Respond as {self.config.character_name} in JSON format:"""
 
         return prompt
+
+    def _clean_utterance(self, text: str) -> str:
+        """Remove emojis and emoticons from utterance for TTS (conservative approach)"""
+        import re
+
+        # Remove emoji (Unicode ranges) - these are always safe to remove
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F1E0-\U0001F1FF"  # flags
+            "\U0001F900-\U0001F9FF"  # supplemental symbols
+            "\U0001FA70-\U0001FAFF"
+            "]+",
+            flags=re.UNICODE
+        )
+        text = emoji_pattern.sub('', text)
+
+        # Remove ONLY obvious emoticon patterns, nothing else
+        # Pattern: (*^_^*), (^_^), (≧▽≦), etc.
+        text = re.sub(r'\([*^_~=><]+[^)]*\)', '', text)
+
+        # Remove standalone sequences: ^_^, ===, ~~~, etc. (but not single chars)
+        text = re.sub(r'(?<!\w)[\^_~=><]{2,}(?!\w)', '', text)
+
+        # Clean up extra spaces
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        return text
 
     async def generate_response(self, user_input: str) -> Dict[str, Any]:
         """
@@ -539,6 +618,20 @@ Respond as {self.config.character_name} in JSON format:"""
             for field in required_fields:
                 if field not in response:
                     raise ValueError(f"Missing required field: {field}")
+
+            # Clean utterance from emojis/emoticons for TTS
+            original_utterance = response["utterance"]
+            cleaned_utterance = self._clean_utterance(original_utterance)
+
+            # Debug: Check if cleaning removed too much
+            if original_utterance and not cleaned_utterance:
+                print(f"[WARN] Utterance was completely removed by cleaning!")
+                print(f"[DEBUG] Original: '{original_utterance}'")
+                print(f"[DEBUG] Cleaned: '{cleaned_utterance}'")
+                # Use original if cleaning removed everything
+                response["utterance"] = original_utterance
+            else:
+                response["utterance"] = cleaned_utterance
 
             # Add phoneme_hints if missing
             if "phoneme_hints" not in response:

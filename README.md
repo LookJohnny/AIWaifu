@@ -67,7 +67,7 @@ Ani/
 ├── audio_pipeline.py         # Voice activity detection & STT
 ├── animation_controller.py   # 3D avatar animation via VMC
 ├── frontend/
-│   └── complete.html         # Web UI with 3D avatar
+│   └── complete_v2.html      # Web UI with 3D avatar (professional design)
 ├── voice_samples/            # Voice cloning samples
 └── character/                # VRM 3D models
 ```
@@ -123,9 +123,15 @@ llm_config = LLMConfig(
 
 ## 📝 TODO
 
+### High Priority
+- [ ] **Better Motion System**: More natural gestures and body animations
+- [ ] **Auto Speak & Listen**: Voice activity detection (no need to hold button)
+- [ ] **Easy Deployment**: One-click setup script with environment configuration
+- [ ] **Auto-Test & Logging**: Automated testing with detailed error logs
+
+### Future Enhancements
 - [ ] Add conversation memory/context
 - [ ] Support more languages (Japanese, Korean)
-- [ ] Emotion-based animation system
 - [ ] Mobile app support
 - [ ] Multi-character support
 
