@@ -93,12 +93,15 @@ async def startup_event():
         # Choose LLM backend:
         # Option 1: Claude 3.5 Haiku (fast, intelligent, bilingual) ✨ ACTIVE
         import os
+        from dotenv import load_dotenv
+        load_dotenv()  # Load environment variables from .env file
+
         llm_config = LLMConfig(
             backend="anthropic",
             model="claude-3-5-haiku-20241022",
             max_tokens=250,  # Increased to prevent JSON truncation (was 150)
             temperature=0.8,  # More creative
-            openai_api_key="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",
+            openai_api_key=os.getenv("CLAUDE_API_KEY"),  # Load from .env file
             character_name="Ani",
             character_personality="friendly and cheerful anime companion"
         )
