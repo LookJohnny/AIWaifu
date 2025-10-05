@@ -104,7 +104,7 @@ async def startup_event():
             max_tokens=250,  # Increased to prevent JSON truncation (was 150)
             temperature=0.8,  # More creative
             openai_api_key=os.getenv("CLAUDE_API_KEY"),  # Load from .env file
-            character_name="Ani",
+            character_name="Anita",
             character_personality="friendly and cheerful anime companion"
         )
 
@@ -312,6 +312,135 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("[Client] Connected")
 
+    # Per-connection state for streaming audio (optional)
+    audio_queue: Optional[asyncio.Queue] = None
+    asr_task: Optional[asyncio.Task] = None
+
+    async def send_state(value: str):
+        try:
+            await websocket.send_json({"type": "state", "value": value})
+        except Exception:
+            pass
+
+    async def ensure_audio_pipeline_ready():
+        """Lazily initialize audio pipeline if not ready"""
+        global audio_pipeline
+        if audio_pipeline:
+            return True
+        try:
+            from audio_pipeline import AudioPipeline as RuntimeAudioPipeline, AudioConfig as RuntimeAudioConfig
+            cfg = RuntimeAudioConfig()
+            ap = RuntimeAudioPipeline(cfg)
+            await ap.load_models()
+            audio_pipeline = ap
+            print("[OK] Audio pipeline initialized (lazy)")
+            return True
+        except Exception as e:
+            print(f"[WARN] Unable to initialize audio pipeline lazily: {e}")
+            return False
+
+    async def start_asr_loop():
+        """Start ASR loop consuming from the connection queue and triggering LLM/TTS on finals"""
+        assert audio_queue is not None
+        print("[ASR] Loop started for connection")
+
+        async def generator():
+            while True:
+                chunk = await audio_queue.get()
+                if chunk is None:
+                    break
+                yield chunk
+
+        def on_final(text: str):
+            if not text:
+                return
+            print(f"[ASR] Final: {text}")
+            asyncio.create_task(generate_and_send(text))
+
+        try:
+            await audio_pipeline.process_audio_stream(generator(), on_final=on_final)
+        except Exception as e:
+            print(f"[FAIL] ASR loop error: {e}")
+
+    async def generate_and_send(user_text: str):
+        """Shared path: user text -> LLM -> TTS -> frontend events"""
+        total_start = time.time()
+        await send_state("thinking")
+
+        if llm_pipeline and llm_pipeline.is_ready:
+            # Generate LLM response
+            llm_start = time.time()
+            llm_response = await llm_pipeline.generate_response(user_text)
+            llm_latency = (time.time() - llm_start) * 1000
+            metrics.add_metric("llm", llm_latency)
+
+            utterance = llm_response['utterance']
+            print(f"[User] {user_text}")
+            print(f"[Ani] {utterance}")
+            print(f"[Emote] {llm_response['emote']['type']} ({llm_response['emote']['intensity']})")
+            print(f"[LLM Latency] {llm_latency:.0f}ms")
+
+            # Trigger character expression animation
+            if animation_controller and animation_controller.connected:
+                emotion = llm_response['emote']['type']
+                intensity = llm_response['emote']['intensity']
+                asyncio.create_task(animation_controller.set_expression(emotion, intensity))
+
+            # Send emotion to frontend
+            await websocket.send_json({
+                "type": "emotion",
+                "emotion": llm_response['emote']['type'],
+                "intensity": llm_response['emote']['intensity']
+            })
+
+            # Send gesture to frontend if present
+            if 'gesture' in llm_response and llm_response['gesture'] != 'none':
+                await websocket.send_json({
+                    "type": "gesture",
+                    "gesture": llm_response['gesture']
+                })
+                print(f"[Gesture] {llm_response['gesture']}")
+
+            # Generate and send audio
+            if tts_pipeline and tts_pipeline.is_ready:
+                import base64
+                await send_state("speaking")
+                tts_start = time.time()
+                tts_result = await tts_pipeline.synthesize_with_phonemes(llm_response["utterance"])
+                tts_latency = (time.time() - tts_start) * 1000
+                metrics.add_metric("tts", tts_latency)
+
+                audio_base64 = base64.b64encode(tts_result["audio"]).decode('utf-8')
+
+                await websocket.send_json({
+                    "type": "audio",
+                    "audio": audio_base64,
+                    "text": llm_response["utterance"]
+                })
+
+                print(f"[TTS Latency] {tts_latency:.0f}ms")
+
+            # Complete response (metadata)
+            response = {
+                "status": "success",
+                "validated": True,
+                "data": {
+                    "utterance": llm_response["utterance"],
+                    "emote": llm_response["emote"],
+                    "intent": llm_response["intent"],
+                    "phoneme_hints": llm_response.get("phoneme_hints", [])
+                },
+                "llm_latency_ms": llm_latency,
+                "total_latency_ms": (time.time() - total_start) * 1000
+            }
+
+            await websocket.send_json(response)
+        else:
+            await websocket.send_json({
+                "status": "error",
+                "error": "LLM pipeline not ready"
+            })
+
     try:
         while True:
             try:
@@ -332,91 +461,36 @@ async def websocket_endpoint(websocket: WebSocket):
 
                         if not user_text:
                             continue
+                        await generate_and_send(user_text)
 
-                        print(f"[User] {user_text}")
-
-                        # Process through LLM
-                        total_start = time.time()
-
-                        if llm_pipeline and llm_pipeline.is_ready:
-                            # Generate LLM response
-                            llm_start = time.time()
-                            llm_response = await llm_pipeline.generate_response(user_text)
-                            llm_latency = (time.time() - llm_start) * 1000
-                            metrics.add_metric("llm", llm_latency)
-
-                            utterance = llm_response['utterance']
-                            print(f"[Ani] {utterance}")
-                            print(f"[Emote] {llm_response['emote']['type']} ({llm_response['emote']['intensity']})")
-                            print(f"[LLM Latency] {llm_latency:.0f}ms")
-
-                            # Debug: Check if utterance is empty
-                            if not utterance or len(utterance.strip()) == 0:
-                                print(f"[WARN] Empty utterance! Raw response: {llm_response}")
-
-                            # Trigger character expression animation
-                            if animation_controller and animation_controller.connected:
-                                emotion = llm_response['emote']['type']
-                                intensity = llm_response['emote']['intensity']
-                                asyncio.create_task(animation_controller.set_expression(emotion, intensity))
-
-                            # Send emotion to frontend
-                            await websocket.send_json({
-                                "type": "emotion",
-                                "emotion": llm_response['emote']['type'],
-                                "intensity": llm_response['emote']['intensity']
-                            })
-
-                            # Send gesture to frontend if present
-                            if 'gesture' in llm_response and llm_response['gesture'] != 'none':
-                                await websocket.send_json({
-                                    "type": "gesture",
-                                    "gesture": llm_response['gesture']
-                                })
-                                print(f"[Gesture] {llm_response['gesture']}")
-
-                            # Generate and send audio
-                            if tts_pipeline and tts_pipeline.is_ready:
-                                tts_start = time.time()
-                                tts_result = await tts_pipeline.synthesize_with_phonemes(llm_response["utterance"])
-                                tts_latency = (time.time() - tts_start) * 1000
-                                metrics.add_metric("tts", tts_latency)
-
-                                # Convert audio to base64
-                                import base64
-                                audio_base64 = base64.b64encode(tts_result["audio"]).decode('utf-8')
-
-                                # Send audio to frontend
-                                await websocket.send_json({
-                                    "type": "audio",
-                                    "audio": audio_base64,
-                                    "text": llm_response["utterance"]
-                                })
-
-                                print(f"[TTS Latency] {tts_latency:.0f}ms")
-
-                            # Send complete response
-                            response = {
-                                "status": "success",
-                                "validated": True,
-                                "data": {
-                                    "utterance": llm_response["utterance"],
-                                    "emote": llm_response["emote"],
-                                    "intent": llm_response["intent"],
-                                    "phoneme_hints": llm_response.get("phoneme_hints", [])
-                                },
-                                "llm_latency_ms": llm_latency,
-                                "total_latency_ms": (time.time() - total_start) * 1000
-                            }
-
-                            await websocket.send_json(response)
-
-                        else:
-                            # Fallback response
-                            await websocket.send_json({
-                                "status": "error",
-                                "error": "LLM pipeline not ready"
-                            })
+                    # Handle audio chunk (JSON base64 -> raw PCM16)
+                    elif json_msg.get("type") == "audio_chunk":
+                        import base64
+                        # Debug log
+                        # Beware: noisy, keep minimal
+                        # print("[WS] audio_chunk received")
+                        if not await ensure_audio_pipeline_ready():
+                            await websocket.send_json({"type": "error", "error": "Audio pipeline unavailable"})
+                            continue
+                        if audio_queue is None:
+                            audio_queue = asyncio.Queue(maxsize=50)
+                        if asr_task is None or asr_task.done():
+                            asr_task = asyncio.create_task(start_asr_loop())
+                        b64 = json_msg.get("data", "")
+                        if not b64:
+                            continue
+                        try:
+                            raw = base64.b64decode(b64)
+                        except Exception:
+                            continue
+                        try:
+                            if audio_queue.qsize() > 40:
+                                _ = audio_queue.get_nowait()
+                            await audio_queue.put(raw)
+                            # Debug queue length
+                            # print(f"[WS] queued {len(raw)} bytes, q={audio_queue.qsize()}")
+                        except Exception:
+                            pass
 
                     # Handle generic JSON (for testing)
                     elif all(k in json_msg for k in ["utterance", "emote", "intent"]):
@@ -446,6 +520,23 @@ async def websocket_endpoint(websocket: WebSocket):
                         "error": str(e),
                         "type": type(e).__name__
                     })
+            elif "bytes" in message:
+                # Binary audio chunk (raw PCM16)
+                if not await ensure_audio_pipeline_ready():
+                    await websocket.send_json({"type": "error", "error": "Audio pipeline unavailable"})
+                    continue
+                if audio_queue is None:
+                    audio_queue = asyncio.Queue(maxsize=50)
+                if asr_task is None or asr_task.done():
+                    asr_task = asyncio.create_task(start_asr_loop())
+                chunk_bytes = message.get("bytes")
+                try:
+                    if audio_queue.qsize() > 40:
+                        _ = audio_queue.get_nowait()
+                    await audio_queue.put(chunk_bytes)
+                    # print(f"[WS] queued {len(chunk_bytes)} bytes (binary), q={audio_queue.qsize()}")
+                except Exception:
+                    pass
 
     except WebSocketDisconnect:
         print("[Client] Disconnected")
