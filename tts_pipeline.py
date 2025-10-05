@@ -21,7 +21,33 @@ class TTSConfig:
     pitch: str = "+0Hz"  # Pitch (Edge TTS only)
     sample_rate: int = 24000  # Output sample rate
     format: str = "riff-24khz-16bit-mono-pcm"  # Edge output format (WAV by default)
+    use_ssml: bool = True  # Render SSML for better prosody/pauses when supported
+    ssml_break_ms: int = 180  # default sentence break length
     speaker_wav: Optional[str] = None  # Path to speaker WAV file (Coqui only)
+
+
+class SSMLRenderer:
+    """Very simple SSML renderer: split sentences and insert breaks, wrap with prosody."""
+
+    @staticmethod
+    def to_ssml(text: str, break_ms: int = 180, rate: str = "+0%", pitch: str = "+0Hz") -> str:
+        def split_sentences(s: str):
+            import re
+            # Split by Chinese and English punctuation while keeping content
+            parts = re.split(r'([。！？!?；;])', s)
+            out = []
+            for i in range(0, len(parts), 2):
+                seg = parts[i].strip()
+                punct = parts[i+1] if i + 1 < len(parts) else ''
+                if seg:
+                    out.append(seg + (punct or ''))
+            return out
+
+        sentences = split_sentences(text)
+        br = f"<break time=\"{break_ms}ms\"/>"
+        inner = br.join(f"<s>{s}</s>" for s in sentences) if sentences else text
+        ssml = f"<speak version=\"1.0\" xml:lang=\"zh-CN\"><prosody rate=\"{rate}\" pitch=\"{pitch}\">{inner}</prosody></speak>"
+        return ssml
 
 
 class SimplePhonemizer:
@@ -99,9 +125,17 @@ class EdgeTTSEngine:
         try:
             import edge_tts
 
+            # Build SSML if enabled
+            ssml_text = None
+            if getattr(self.config, 'use_ssml', False):
+                try:
+                    ssml_text = SSMLRenderer.to_ssml(text, break_ms=getattr(self.config, 'ssml_break_ms', 180), rate=self.config.rate, pitch=self.config.pitch)
+                except Exception:
+                    ssml_text = None
+
             # Create TTS communicator
             communicate = edge_tts.Communicate(
-                text,
+                ssml_text or text,
                 self.config.voice,
                 rate=self.config.rate,
                 pitch=self.config.pitch
@@ -121,7 +155,24 @@ class EdgeTTSEngine:
 
         except Exception as e:
             print(f"[FAIL] Edge TTS error: {e}")
-            raise
+            # Try fallback without SSML
+            try:
+                import edge_tts
+                communicate = edge_tts.Communicate(
+                    text,
+                    self.config.voice,
+                    rate=self.config.rate,
+                    pitch=self.config.pitch
+                )
+                audio_data = io.BytesIO()
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_data.write(chunk["data"])
+                audio_bytes = audio_data.getvalue()
+                duration_ms = self._estimate_duration(audio_bytes, text)
+                return audio_bytes, duration_ms
+            except Exception:
+                raise
 
     def _estimate_duration(self, audio_bytes: bytes, text: str) -> float:
         """Estimate duration from WAV metadata when available

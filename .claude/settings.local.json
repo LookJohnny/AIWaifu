@@ -35,7 +35,14 @@
       "Bash(xargs:*)",
       "Bash(cmd.exe:*)",
       "Bash(py:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(cat:*)",
+      "Bash(PYTHONIOENCODING=utf-8 py -u main_full.py)",
+      "Bash(rm:*)",
+      "Bash(git rm:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []

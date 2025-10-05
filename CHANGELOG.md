@@ -89,3 +89,15 @@ All notable changes to Anita AI Voice Companion will be documented in this file.
 - GPU-accelerated inference (CUDA support)
 - Browser-based speech recognition
 - FastAPI backend + HTML/JS frontend
+## 2025-10-05
+
+Added
+- rag/ folder scaffolding for Retrieval-Augmented Generation (RAG)
+  - rag/knowledge.py: lightweight dependency‑free retriever (EN tokens + CJK bigrams)
+  - rag/data/: sample JSON (`sample_products.json`) and data conventions
+  - rag/index/: reserved for future vector stores
+  - rag/README.md: usage and structure
+  - scripts/md_to_json.py: Markdown -> JSON converter (front‑matter or H2 sections)
+
+Notes
+- Not wired into the main pipeline yet. You can import `KnowledgeBase` and call `search()` where needed. Future changes can swap to a vector index without touching callers.

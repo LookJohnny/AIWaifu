@@ -312,6 +312,43 @@ async def get_metrics():
     }
 
 
+@app.get("/config/audio")
+async def get_audio_config():
+    """Get current audio VAD/STT configuration"""
+    global audio_pipeline
+    if not audio_pipeline:
+        return {"enabled": False}
+    cfg = audio_pipeline.config
+    return {
+        "enabled": True,
+        "sample_rate": cfg.sample_rate,
+        "chunk_size": cfg.chunk_size,
+        "vad_threshold": cfg.vad_threshold,
+        "min_speech_duration_ms": cfg.min_speech_duration_ms,
+        "min_silence_duration_ms": cfg.min_silence_duration_ms,
+    }
+
+
+@app.post("/config/audio")
+async def update_audio_config(req: Request):
+    """Update audio VAD parameters at runtime (if pipeline is initialized)"""
+    global audio_pipeline
+    data = await req.json()
+    updated = {}
+    if not audio_pipeline:
+        return {"enabled": False, "error": "audio pipeline not initialized"}
+    cfg = audio_pipeline.config
+    for key in ["vad_threshold", "min_speech_duration_ms", "min_silence_duration_ms"]:
+        if key in data:
+            try:
+                val = float(data[key]) if "threshold" in key else int(data[key])
+            except Exception:
+                continue
+            setattr(cfg, key, val)
+            updated[key] = val
+    return {"enabled": True, "updated": updated}
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """

@@ -312,10 +312,10 @@ class MockLLMBackend(LLMBackend):
         # Bilingual responses (中文 + English)
         self.responses = {
             "greetings_zh": [
-                {"utterance": f"你好呀！我是{config.character_name}，很高兴见到你！有什么我可以帮你的吗？", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+                {"utterance": f"你好呀！我是{config.character_name}，很高兴见到你！有什么我可以帮你的吗�?, "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
                 {"utterance": "嗨！见到你真开心！今天过得怎么样？", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
-                {"utterance": "欢迎欢迎！我一直在等你来聊天呢！", "emote": {"type": "joy", "intensity": 0.85}, "intent": "SMALL_TALK"},
-                {"utterance": "你来啦！太好了，我们聊点什么吧！", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
+                {"utterance": "欢迎欢迎！我一直在等你来聊天呢�?, "emote": {"type": "joy", "intensity": 0.85}, "intent": "SMALL_TALK"},
+                {"utterance": "你来啦！太好了，我们聊点什么吧�?, "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
             ],
             "greetings_en": [
                 {"utterance": f"Hello! I'm {config.character_name}! How can I help you today?", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
@@ -323,33 +323,33 @@ class MockLLMBackend(LLMBackend):
                 {"utterance": "Hey! I'm so excited to chat with you!", "emote": {"type": "joy", "intensity": 0.7}, "intent": "SMALL_TALK"},
             ],
             "questions_zh": [
-                {"utterance": "这个问题很有意思！让我想想……其实有很多不同的角度可以看待这个问题。", "emote": {"type": "neutral", "intensity": 0.6}, "intent": "ANSWER"},
-                {"utterance": "哇，好问题！我也很好奇这个呢！", "emote": {"type": "surprise", "intensity": 0.7}, "intent": "ASK"},
-                {"utterance": "嗯……我觉得这要看具体情况！你觉得呢？", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ASK"},
+                {"utterance": "这个问题很有意思！让我想想……其实有很多不同的角度可以看待这个问题�?, "emote": {"type": "neutral", "intensity": 0.6}, "intent": "ANSWER"},
+                {"utterance": "哇，好问题！我也很好奇这个呢�?, "emote": {"type": "surprise", "intensity": 0.7}, "intent": "ASK"},
+                {"utterance": "嗯……我觉得这要看具体情况！你觉得呢�?, "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ASK"},
             ],
             "questions_en": [
                 {"utterance": "That's a really interesting question! Let me think about that...", "emote": {"type": "surprise", "intensity": 0.6}, "intent": "ANSWER"},
                 {"utterance": "Great question! I love when you ask me things like that!", "emote": {"type": "joy", "intensity": 0.7}, "intent": "ANSWER"},
             ],
             "positive_zh": [
-                {"utterance": "太好了！我真为你高兴！", "emote": {"type": "joy", "intensity": 0.95}, "intent": "SMALL_TALK"},
-                {"utterance": "哇！听起来超棒的！", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
-                {"utterance": "真的吗？太让人开心了！你让我的一天都变美好了！", "emote": {"type": "joy", "intensity": 1.0}, "intent": "SMALL_TALK"},
+                {"utterance": "太好了！我真为你高兴�?, "emote": {"type": "joy", "intensity": 0.95}, "intent": "SMALL_TALK"},
+                {"utterance": "哇！听起来超棒的�?, "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
+                {"utterance": "真的吗？太让人开心了！你让我的一天都变美好了�?, "emote": {"type": "joy", "intensity": 1.0}, "intent": "SMALL_TALK"},
             ],
             "positive_en": [
                 {"utterance": "That's wonderful! I'm so happy for you!", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
                 {"utterance": "Amazing! That sounds really exciting!", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
             ],
             "negative_zh": [
-                {"utterance": "哎呀……听起来有点难过。我能帮你什么吗？", "emote": {"type": "sad", "intensity": 0.7}, "intent": "ASK"},
-                {"utterance": "别太难过了，我一直在这里陪着你。", "emote": {"type": "sad", "intensity": 0.6}, "intent": "SMALL_TALK"},
+                {"utterance": "哎呀……听起来有点难过。我能帮你什么吗�?, "emote": {"type": "sad", "intensity": 0.7}, "intent": "ASK"},
+                {"utterance": "别太难过了，我一直在这里陪着你�?, "emote": {"type": "sad", "intensity": 0.6}, "intent": "SMALL_TALK"},
             ],
             "negative_en": [
                 {"utterance": "Oh no, I'm sorry to hear that. Is there anything I can do?", "emote": {"type": "sad", "intensity": 0.6}, "intent": "ASK"},
             ],
             "thanks_zh": [
                 {"utterance": "不客气！我很乐意帮忙的！", "emote": {"type": "joy", "intensity": 0.8}, "intent": "SMALL_TALK"},
-                {"utterance": "没事没事！这是我应该做的！", "emote": {"type": "joy", "intensity": 0.75}, "intent": "SMALL_TALK"},
+                {"utterance": "没事没事！这是我应该做的�?, "emote": {"type": "joy", "intensity": 0.75}, "intent": "SMALL_TALK"},
                 {"utterance": "随时都可以！能帮到你我很开心！", "emote": {"type": "joy", "intensity": 0.9}, "intent": "SMALL_TALK"},
             ],
             "thanks_en": [
@@ -357,9 +357,9 @@ class MockLLMBackend(LLMBackend):
             ],
             "default_zh": [
                 {"utterance": "原来如此！跟我说说更多吧，我很好奇！", "emote": {"type": "neutral", "intensity": 0.6}, "intent": "ASK"},
-                {"utterance": "有意思！我之前没这样想过呢。", "emote": {"type": "surprise", "intensity": 0.6}, "intent": "SMALL_TALK"},
-                {"utterance": "嗯嗯，我明白你的意思！确实值得好好想想。", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "SMALL_TALK"},
-                {"utterance": "是这样啊！继续说说吧！", "emote": {"type": "joy", "intensity": 0.6}, "intent": "ASK"},
+                {"utterance": "有意思！我之前没这样想过呢�?, "emote": {"type": "surprise", "intensity": 0.6}, "intent": "SMALL_TALK"},
+                {"utterance": "嗯嗯，我明白你的意思！确实值得好好想想�?, "emote": {"type": "neutral", "intensity": 0.5}, "intent": "SMALL_TALK"},
+                {"utterance": "是这样啊！继续说说吧�?, "emote": {"type": "joy", "intensity": 0.6}, "intent": "ASK"},
             ],
             "default_en": [
                 {"utterance": "I see! Tell me more, I'm curious!", "emote": {"type": "neutral", "intensity": 0.5}, "intent": "ASK"},
@@ -387,11 +387,11 @@ class MockLLMBackend(LLMBackend):
         prompt_lower = prompt.lower()
 
         # Choose response category (Chinese patterns)
-        if any(word in prompt for word in ["你好", "您好", "嗨", "hi", "hello", "hey"]):
+        if any(word in prompt for word in ["你好", "您好", "�?, "hi", "hello", "hey"]):
             category = "greetings"
-        elif any(word in prompt for word in ["吗", "什么", "怎么", "为什么", "哪里", "谁", "?", "what", "how", "why"]):
+        elif any(word in prompt for word in ["�?, "什�?, "怎么", "为什�?, "哪里", "�?, "?", "what", "how", "why"]):
             category = "questions"
-        elif any(word in prompt for word in ["好", "棒", "开心", "高兴", "兴奋", "喜欢", "good", "great", "happy", "love"]):
+        elif any(word in prompt for word in ["�?, "�?, "开�?, "高兴", "兴奋", "喜欢", "good", "great", "happy", "love"]):
             category = "positive"
         elif any(word in prompt for word in ["难过", "伤心", "不好", "糟糕", "讨厌", "生气", "sad", "bad", "angry"]):
             category = "negative"
@@ -431,18 +431,6 @@ class LLMPipeline:
         self.backend: Optional[LLMBackend] = None
         self.is_ready = False
 
-        # Optional conversation memory and knowledge base (RAG)
-        try:
-            from memory import ConversationMemory
-            self.memory = ConversationMemory(max_turns=8, summary_interval=4)
-        except Exception:
-            self.memory = None
-        try:
-            from rag.knowledge import KnowledgeBase
-            self.kb = KnowledgeBase()
-        except Exception:
-            self.kb = None
-
         # JSON schema for Ani responses - Enhanced with more emotions
         self.response_schema = {
             "type": "object",
@@ -458,16 +446,7 @@ class LLMPipeline:
                 },
                 "intent": {"type": "string", "enum": ["SMALL_TALK", "ANSWER", "ASK", "JOKE", "TOOL_USE"]},
                 "phoneme_hints": {"type": "array"},
-                "gesture": {"type": "string", "enum": ["none", "wave", "nod", "shake_head", "think", "celebrate"]},
-                "plan": {
-                    "type": "object",
-                    "properties": {
-                        "intent": {"type": "string"},
-                        "key_points": {"type": "array"},
-                        "tone": {"type": "string"},
-                        "follow_up": {"type": "string"}
-                    }
-                }
+                "gesture": {"type": "string", "enum": ["none", "wave", "nod", "shake_head", "think", "celebrate"]}
             },
             "required": ["utterance", "emote", "intent"]
         }
@@ -523,7 +502,7 @@ class LLMPipeline:
             print("[WARN] Using Mock backend as fallback")
 
     def _build_prompt(self, user_input: str) -> str:
-        """Build prompt with memory + optional RAG + JSON schema requirements (中文口语化强化)"""
+        """Build prompt with character personality and JSON schema requirements"""
         schema_description = """
 You must respond with valid JSON matching this exact format:
 {
@@ -534,13 +513,7 @@ You must respond with valid JSON matching this exact format:
   },
   "intent": "SMALL_TALK|ANSWER|ASK|JOKE|TOOL_USE",
   "gesture": "none|wave|nod|shake_head|think|celebrate",
-  "phoneme_hints": [],
-  "plan": {
-    "intent": "string",
-    "key_points": ["bullet", "bullet"],
-    "tone": "brief, friendly, colloquial Chinese",
-    "follow_up": "a natural short question if needed"
-  }
+  "phoneme_hints": []
 }
 
 Emotion guide:
@@ -563,53 +536,21 @@ Gesture guide:
 - celebrate: for excitement/achievement
 
 IMPORTANT RULES:
-- DO NOT use emojis or emoticons in utterance
+- DO NOT use emojis (❤️, 😊, etc.) or emoticons ((*^▽^*), ^_^, etc.) in utterance
 - Use ONLY plain text in utterance - emojis will be read aloud by TTS and sound weird
 - Express emotions through words and the "emote" field, not symbols
-- Keep utterance SHORT (1-2 sentences, under 80-100 characters) - this is a voice conversation
-- 中文场景优先使用自然口语化中文，句子简短、直白，避免书面语
-- 先回应用户，再给出一个自然的跟进问题（如需要，以便延续对话）
+- Keep utterance SHORT (1-2 sentences max, under 100 characters) - this is a voice conversation
+- Be concise and natural like a real conversation
 """
 
-        # Conversation memory block
-        memory_block = ""
-        if getattr(self, "memory", None):
-            mem_txt = self.memory.get_context_block()
-            if mem_txt:
-                memory_block = f"\n[对话上下文]\n{mem_txt}\n"
-
-        # RAG block (命中→要点→润色 的闭环：先提供事实要点，模型据此规划+表述)
-        rag_block = ""
-        if getattr(self, "kb", None):
-            try:
-                hits = self.kb.search(user_input, top_k=3)
-                if hits:
-                    rag_lines = []
-                    for h in hits:
-                        title = str(h.get('title', ''))
-                        snippet = str(h.get('snippet', ''))
-                        rag_lines.append(f"- {title}: {snippet}")
-                    facts = "\n".join(rag_lines)
-                    rag_block = (
-                        "\n[已知事实(STRICT FACTS)]\n"
-                        + facts
-                        + "\n\n规则:\n"
-                          "- 回答必须严格以以上事实为依据, 不得臆测或编造(尤其价格/时效).\n"
-                          "- 若事实不足以回答, 先简短回应, 再给出一个自然的澄清问题或引导动作.\n"
-                          "- 语气口语化, 1-2 句为宜.\n"
-                    )
-            except Exception:
-                pass
-
         prompt = f"""You are {self.config.character_name}, a {self.config.character_personality}.
-You can speak both English and Chinese. Respond in the same language the user speaks.
-{memory_block}{rag_block}
+You can speak both English and Chinese (中文). Respond in the same language the user speaks.
+
 User said: "{user_input}"
 
 {schema_description}
 
-CRITICAL: Keep utterance SHORT (1-2 sentences). This is voice conversation - be concise and natural.
-PLANNING: Produce an internal plan object in the JSON field "plan" (intent, key_points, tone, follow_up) then craft the final utterance from it.
+CRITICAL: Keep utterance SHORT (1-2 sentences max). This is voice conversation - be concise!
 
 Respond as {self.config.character_name} in JSON format:"""
 
@@ -634,7 +575,7 @@ Respond as {self.config.character_name} in JSON format:"""
         text = emoji_pattern.sub('', text)
 
         # Remove ONLY obvious emoticon patterns, nothing else
-        # Pattern: (*^_^*), (^_^), (≧▽≦), etc.
+        # Pattern: (*^_^*), (^_^), (≧▽�?, etc.
         text = re.sub(r'\([*^_~=><]+[^)]*\)', '', text)
 
         # Remove standalone sequences: ^_^, ===, ~~~, etc. (but not single chars)
@@ -661,13 +602,6 @@ Respond as {self.config.character_name} in JSON format:"""
         start_time = time.time()
 
         try:
-            # Add to memory (user)
-            if getattr(self, "memory", None):
-                try:
-                    self.memory.add_user(user_input)
-                except Exception:
-                    pass
-
             # Build prompt
             prompt = self._build_prompt(user_input)
 
@@ -697,18 +631,6 @@ Respond as {self.config.character_name} in JSON format:"""
             # Add phoneme_hints if missing
             if "phoneme_hints" not in response:
                 response["phoneme_hints"] = []
-
-            # Update memory (assistant)
-            if getattr(self, "memory", None):
-                try:
-                    em = None
-                    try:
-                        em = response.get("emote", {}).get("type")
-                    except Exception:
-                        pass
-                    self.memory.add_assistant(response["utterance"], emote=em)
-                except Exception:
-                    pass
 
             # Calculate latency
             latency_ms = (time.time() - start_time) * 1000
@@ -779,3 +701,4 @@ async def test_llm_pipeline():
 
 if __name__ == "__main__":
     asyncio.run(test_llm_pipeline())
+
