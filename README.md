@@ -2,14 +2,14 @@
 
 A bilingual (Chinese + English) AI voice companion with 3D avatar animation, voice cloning, and real-time conversation.
 
-## ✨ Features
+## Features
 
-- **🧠 Intelligent Conversation**: Powered by Claude 3.5 Haiku for natural, context-aware dialogue
-- **🎤 Fast Voice Synthesis**: Edge TTS with multiple voice styles (<1s response time)
-- **🗣️ Speech Recognition**: Real-time voice input with Faster-Whisper (GPU accelerated)
-- **🎭 3D Avatar Animation**: VRM model with expression and lip-sync support
-- **🌏 Bilingual Support**: Seamless Chinese and English conversation
-- **⚡ Ultra-Fast Response**: <2s total latency (10x faster than baseline)
+- **Intelligent Conversation**: Powered by Claude 3.5 Haiku for natural, context-aware dialogue
+- **Fast Voice Synthesis**: Edge TTS with multiple voice styles (<1s response time)
+- **Speech Recognition**: Real-time voice input with Faster-Whisper (GPU accelerated)
+- **3D Avatar Animation**: VRM model with expression and lip-sync support
+- **Bilingual Support**: Seamless Chinese and English conversation
+- **Ultra-Fast Response**: <2s total latency (10x faster than baseline)
 
 ## 🚀 Quick Start
 
@@ -33,7 +33,8 @@ pip install -r requirements.txt
 ```
 
 3. Configure API keys:
-   - Edit `main_full.py` and add your Claude API key (line 98)
+   - Copy `.env.example` to `.env` and set `CLAUDE_API_KEY=your-api-key`
+   - Optional: set `ENABLE_AUDIO_PIPELINE=1` if you want server-side speech recognition
 
 4. Start the server:
 ```bash

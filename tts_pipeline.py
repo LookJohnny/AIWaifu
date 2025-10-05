@@ -6,6 +6,7 @@ Target: <700ms latency
 import asyncio
 import time
 import io
+import wave
 from typing import Optional, List, Tuple
 from dataclasses import dataclass
 import numpy as np
@@ -19,6 +20,7 @@ class TTSConfig:
     rate: str = "+0%"  # Speech rate (Edge TTS only)
     pitch: str = "+0Hz"  # Pitch (Edge TTS only)
     sample_rate: int = 24000  # Output sample rate
+    format: str = "riff-24khz-16bit-mono-pcm"  # Edge output format (WAV by default)
     speaker_wav: Optional[str] = None  # Path to speaker WAV file (Coqui only)
 
 
@@ -113,16 +115,35 @@ class EdgeTTSEngine:
                     audio_data.write(chunk["data"])
 
             audio_bytes = audio_data.getvalue()
-
-            # Estimate duration (rough)
-            # Edge TTS outputs MP3, we'll convert to wav if needed
-            duration_ms = len(text) * 50  # Rough estimate: ~50ms per character
+            duration_ms = self._estimate_duration(audio_bytes, text)
 
             return audio_bytes, duration_ms
 
         except Exception as e:
             print(f"[FAIL] Edge TTS error: {e}")
             raise
+
+    def _estimate_duration(self, audio_bytes: bytes, text: str) -> float:
+        """Estimate duration from WAV metadata when available
+        Fallback heuristics keep audio responsive even if parsing fails
+        """
+        try:
+            with wave.open(io.BytesIO(audio_bytes), 'rb') as wav_file:
+                frames = wav_file.getnframes()
+                framerate = wav_file.getframerate() or self.config.sample_rate
+                if framerate > 0:
+                    return (frames / framerate) * 1000
+        except wave.Error:
+            pass
+
+        if self.config.sample_rate > 0:
+            bytes_per_sample = 2  # 16-bit audio
+            channels = 1
+            bytes_per_second = self.config.sample_rate * bytes_per_sample * channels
+            if bytes_per_second > 0:
+                return (len(audio_bytes) / bytes_per_second) * 1000
+
+        return max(len(text) * 50, 1)
 
 
 class CoquiTTSEngine:

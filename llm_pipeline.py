@@ -217,16 +217,11 @@ class AnthropicBackend(LLMBackend):
         self.api_key = config.openai_api_key
 
     async def is_available(self) -> bool:
-        """Check if Anthropic API is accessible"""
+        """Check if Anthropic API can be used without making a full request"""
+        if not self.api_key:
+            return False
         try:
-            from anthropic import AsyncAnthropic
-            client = AsyncAnthropic(api_key=self.api_key)
-            # Test with a minimal request
-            await client.messages.create(
-                model=self.config.model,
-                max_tokens=1,
-                messages=[{"role": "user", "content": "hi"}]
-            )
+            import anthropic  # noqa: F401
             return True
         except Exception:
             return False

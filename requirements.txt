@@ -6,6 +6,7 @@ python-multipart==0.0.6
 python-dotenv==1.0.0
 
 # Phase 2: Audio processing
+edge-tts
 numpy==1.24.3
 # torch and torchaudio: Install GPU version with:
 # pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
@@ -14,6 +15,7 @@ faster-whisper==0.10.0
 soundfile==0.12.1
 
 # Phase 3: LLM
+anthropic
 aiohttp==3.9.0
 
 # Phase 4: Animation (Day 2)

@@ -4,19 +4,21 @@ Full pipeline: Voice Input → VAD → STT → LLM → TTS → Voice Output
 """
 import asyncio
 import json
+import os
 import time
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, TYPE_CHECKING
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 import uvicorn
 
-from audio_pipeline import AudioPipeline, AudioConfig
 from llm_pipeline import LLMPipeline, LLMConfig
 from tts_pipeline import TTSPipeline, TTSConfig
 from animation_controller import AnimationController
 
+if TYPE_CHECKING:
+    from audio_pipeline import AudioPipeline, AudioConfig
 
 # JSON Schema Models
 class Emote(BaseModel):
@@ -73,7 +75,7 @@ app = FastAPI(title="Ani v0 - Complete Voice Companion")
 metrics = LatencyMetrics()
 
 # Global pipelines
-audio_pipeline: Optional[AudioPipeline] = None
+audio_pipeline: Optional["AudioPipeline"] = None
 llm_pipeline: Optional[LLMPipeline] = None
 tts_pipeline: Optional[TTSPipeline] = None
 animation_controller: Optional[AnimationController] = None
@@ -164,13 +166,20 @@ async def startup_event():
     except Exception as e:
         print(f"[WARN] TTS initialization failed: {e}")
 
-    # Initialize Audio pipeline
-    try:
-        audio_config = AudioConfig()
-        audio_pipeline = AudioPipeline(audio_config)
-        await audio_pipeline.load_models()
-    except Exception as e:
-        print(f"[WARN] Audio pipeline initialization failed: {e}")
+    # Initialize Audio pipeline (optional)
+    enable_audio = os.getenv("ENABLE_AUDIO_PIPELINE", "0").lower() in {"1", "true", "yes", "on"}
+    if enable_audio:
+        try:
+            from audio_pipeline import AudioPipeline as RuntimeAudioPipeline, AudioConfig as RuntimeAudioConfig
+            audio_config = RuntimeAudioConfig()
+            audio_pipeline = RuntimeAudioPipeline(audio_config)
+            await audio_pipeline.load_models()
+        except ImportError as e:
+            print(f"[WARN] Audio pipeline dependencies missing: {e}")
+        except Exception as e:
+            print(f"[WARN] Audio pipeline initialization failed: {e}")
+    else:
+        print("[INFO] Audio pipeline disabled (set ENABLE_AUDIO_PIPELINE=1 to enable server-side VAD/STT)")
 
     # Initialize Animation Controller (3D character via VSeeFace)
     try:
