@@ -412,6 +412,16 @@
         const clock = new THREE.Clock();
         let time = 0;
 
+        // Mic streaming state (WS audio)
+        let audioContext = null;
+        let micStream = null;
+        let sourceNode = null;
+        let processorNode = null;
+        let downsampleBuffer = [];
+        const IN_SAMPLE_RATE = 48000;
+        const OUT_SAMPLE_RATE = 16000;
+        const CHUNK_SAMPLES = 512; // 32ms @16kHz
+
         // Expression transition state
         let currentExpression = { emotion: 'neutral', intensity: 0 };
         let targetExpression = { emotion: 'neutral', intensity: 0 };
@@ -682,6 +692,8 @@
 
             ws.onopen = () => {
                 updateStatus('connected', 'Ready');
+                // Auto start mic streaming when connected
+                startMicStreaming();
             };
 
             ws.onmessage = (event) => {
@@ -695,6 +707,9 @@
                 }
                 if (data.type === 'gesture' && data.gesture) {
                     playGesture(data.gesture);
+                }
+                if (data.type === 'state') {
+                    updateStatus('connected', data.value);
                 }
             };
 
@@ -819,6 +834,125 @@
             };
         }
 
+        // ===== Streaming microphone over WebSocket =====
+        function startMicStreaming() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (processorNode) return; // already running
+
+            const constraints = {
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 1,
+                    sampleRate: IN_SAMPLE_RATE
+                }
+            };
+
+            navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+                micStream = stream;
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: IN_SAMPLE_RATE });
+                sourceNode = audioContext.createMediaStreamSource(stream);
+                const bufferSize = 2048;
+                processorNode = audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+                processorNode.onaudioprocess = (e) => {
+                    const input = e.inputBuffer.getChannelData(0);
+                    const down = downsample(input, IN_SAMPLE_RATE, OUT_SAMPLE_RATE);
+                    if (down && down.length) {
+                        downsampleBuffer = downsampleBuffer.concat(Array.from(down));
+                        // Send fixed-size chunks of 512 samples @16kHz
+                        while (downsampleBuffer.length >= CHUNK_SAMPLES) {
+                            const frame = downsampleBuffer.slice(0, CHUNK_SAMPLES);
+                            downsampleBuffer = downsampleBuffer.slice(CHUNK_SAMPLES);
+                            const bytes = floatTo16PCM(new Float32Array(frame));
+                            sendAudioChunk(bytes);
+                        }
+                    }
+                };
+
+                sourceNode.connect(processorNode);
+                processorNode.connect(audioContext.destination);
+                // Try resume if autoplay policy suspended the context
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().catch(()=>{});
+                }
+                isListening = true;
+                document.getElementById('talk-btn').classList.add('recording');
+                document.getElementById('mic-status').textContent = 'Listening...';
+                updateStatus('thinking', 'Listening...');
+            }).catch(err => {
+                console.error('getUserMedia error', err);
+                updateStatus('disconnected', 'Mic error');
+            });
+        }
+
+        function stopMicStreaming() {
+            if (processorNode) {
+                try { processorNode.disconnect(); } catch (e) {}
+                processorNode = null;
+            }
+            if (sourceNode) {
+                try { sourceNode.disconnect(); } catch (e) {}
+                sourceNode = null;
+            }
+            if (audioContext) {
+                try { audioContext.close(); } catch (e) {}
+                audioContext = null;
+            }
+            if (micStream) {
+                micStream.getTracks().forEach(t => t.stop());
+                micStream = null;
+            }
+            isListening = false;
+            document.getElementById('talk-btn').classList.remove('recording');
+            document.getElementById('mic-status').textContent = 'Paused';
+            updateStatus('connected', 'Paused');
+        }
+
+        function downsample(buffer, inputRate, outputRate) {
+            if (outputRate === inputRate) return buffer;
+            const ratio = inputRate / outputRate;
+            const newLength = Math.floor(buffer.length / ratio);
+            const result = new Float32Array(newLength);
+            let offsetResult = 0;
+            let offsetBuffer = 0;
+            while (offsetResult < result.length) {
+                const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+                let accum = 0, count = 0;
+                for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+                    accum += buffer[i];
+                    count++;
+                }
+                result[offsetResult] = accum / (count || 1);
+                offsetResult++;
+                offsetBuffer = nextOffsetBuffer;
+            }
+            return result;
+        }
+
+        function floatTo16PCM(float32Array) {
+            const buffer = new ArrayBuffer(float32Array.length * 2);
+            const view = new DataView(buffer);
+            let offset = 0;
+            for (let i = 0; i < float32Array.length; i++) {
+                let s = Math.max(-1, Math.min(1, float32Array[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
+            }
+            return new Uint8Array(buffer);
+        }
+
+        function sendAudioChunk(uint8Array) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            // base64 encode
+            let binary = '';
+            const len = uint8Array.length;
+            for (let i = 0; i < len; i++) binary += String.fromCharCode(uint8Array[i]);
+            const b64 = btoa(binary);
+            ws.send(JSON.stringify({ type: 'audio_chunk', data: b64 }));
+        }
+
         function sendTextToAI(text) {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 updateStatus('disconnected', 'Not connected');
@@ -830,14 +964,24 @@
         }
 
         // 按钮事件
-        document.getElementById('talk-btn').addEventListener('mousedown', () => {
-            if (recognition && !isListening) {
-                try { recognition.start(); } catch (error) {}
+        // Repurpose button to toggle continuous listening
+        document.getElementById('talk-btn').addEventListener('click', () => {
+            if (!isListening) {
+                startMicStreaming();
+            } else {
+                stopMicStreaming();
             }
         });
 
-        document.getElementById('talk-btn').addEventListener('mouseup', () => {
-            if (recognition && isListening) recognition.stop();
+        // Help resume audio context due to autoplay policy
+        ['click','keydown','touchstart'].forEach(evt => {
+            window.addEventListener(evt, () => {
+                try {
+                    if (audioContext && audioContext.state === 'suspended') {
+                        audioContext.resume();
+                    }
+                } catch(e) {}
+            }, { passive: true, once: false });
         });
 
         // 动画循环
@@ -894,7 +1038,6 @@
 
         // 启动
         window.addEventListener('load', () => {
-            initSpeechRecognition();
             connectWebSocket();
             animate();
         });
