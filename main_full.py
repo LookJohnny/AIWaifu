@@ -7,6 +7,7 @@ import json
 import os
 import time
 from typing import Dict, Optional, List, TYPE_CHECKING
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import HTMLResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -70,8 +71,6 @@ class LatencyMetrics:
         }
 
 
-# FastAPI app
-app = FastAPI(title="Ani v0 - Complete Voice Companion")
 metrics = LatencyMetrics()
 
 # Global pipelines
@@ -81,9 +80,9 @@ tts_pipeline: Optional[TTSPipeline] = None
 animation_controller: Optional[AnimationController] = None
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize all pipelines on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize all pipelines on startup and cleanup on shutdown"""
     global audio_pipeline, llm_pipeline, tts_pipeline, animation_controller
 
     print("=" * 60)
@@ -196,6 +195,16 @@ async def startup_event():
     print("[OK] Ani v0 Server Ready!")
     print("=" * 60)
 
+    yield  # Server runs here
+
+    # Cleanup on shutdown
+    if animation_controller:
+        animation_controller.close()
+    print("[INFO] Server shutdown complete")
+
+
+# FastAPI app with lifespan
+app = FastAPI(title="Ani v0 - Complete Voice Companion", lifespan=lifespan)
 
 # Mount static files for VRM model (must be before routes)
 app.mount("/character", StaticFiles(directory="character"), name="character")
@@ -540,6 +549,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         print("[Client] Disconnected")
+    finally:
+        # Cleanup: stop ASR task and drain queue
+        if audio_queue is not None:
+            try:
+                await audio_queue.put(None)  # Signal end
+            except Exception:
+                pass
+        if asr_task is not None and not asr_task.done():
+            try:
+                asr_task.cancel()
+                await asyncio.wait_for(asr_task, timeout=1.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+            except Exception as e:
+                print(f"[WARN] ASR cleanup error: {e}")
 
 
 if __name__ == "__main__":

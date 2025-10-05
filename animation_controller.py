@@ -27,7 +27,10 @@ class AnimationController:
         "sad": "sad",
         "anger": "angry",
         "surprise": "surprised",
-        "neutral": "neutral"
+        "neutral": "neutral",
+        "excited": "fun",  # Map to happy/fun
+        "confused": "sad",  # Map to sad/uncertain
+        "curious": "surprised"  # Map to surprised/interested
     }
 
     def __init__(self, host: str = "127.0.0.1", port: int = 39539):
