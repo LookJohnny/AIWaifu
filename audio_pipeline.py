@@ -128,7 +128,7 @@ class WhisperSTT:
             print(f"[FAIL] Failed to load Faster-Whisper: {e}")
             raise
 
-    async def transcribe(self, audio: np.ndarray, language: str = "en") -> str:
+    async def transcribe(self, audio: np.ndarray, language: Optional[str] = None) -> str:
         """
         Transcribe audio to text
         Returns: transcribed text
@@ -138,14 +138,31 @@ class WhisperSTT:
 
         try:
             # Transcribe
-            segments, info = self.model.transcribe(
-                audio,
-                language=language,
-                beam_size=1,  # Faster beam search
-                best_of=1,
-                temperature=0.0,
-                vad_filter=False,  # We handle VAD separately
-            )
+            if language is None:
+                # Let faster-whisper auto-detect language
+                segments, info = self.model.transcribe(
+                    audio,
+                    language=None,
+                    task="transcribe",
+                    beam_size=1,
+                    best_of=1,
+                    temperature=0.0,
+                    vad_filter=False,
+                )
+                try:
+                    print(f"[STT] Detected language: {getattr(info, 'language', 'auto')}")
+                except Exception:
+                    pass
+            else:
+                segments, info = self.model.transcribe(
+                    audio,
+                    language=language,
+                    task="transcribe",
+                    beam_size=1,  # Faster beam search
+                    best_of=1,
+                    temperature=0.0,
+                    vad_filter=False,  # We handle VAD separately
+                )
 
             # Collect segments
             text_parts = []
@@ -233,7 +250,7 @@ class AudioPipeline:
 
                                 # Measure STT latency
                                 stt_start = time.time()
-                                text = await self.stt.transcribe(audio_array)
+                                text = await self.stt.transcribe(audio_array, language="zh")
                                 stt_latency = (time.time() - stt_start) * 1000
 
                                 print(f"[STT] Transcribed in {stt_latency:.0f}ms: '{text}'")
