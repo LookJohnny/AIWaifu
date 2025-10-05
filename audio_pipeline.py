@@ -16,9 +16,9 @@ class AudioConfig:
     """Audio processing configuration"""
     sample_rate: int = 16000  # 16kHz for Whisper and Silero VAD
     chunk_size: int = 512  # Fixed for Silero VAD (512 samples at 16kHz)
-    vad_threshold: float = 0.5  # Voice probability threshold
-    min_speech_duration_ms: int = 250  # Minimum speech duration
-    min_silence_duration_ms: int = 500  # Silence before speech ends
+    vad_threshold: float = 0.45  # Voice probability threshold (lower = more sensitive)
+    min_speech_duration_ms: int = 300  # Minimum speech duration
+    min_silence_duration_ms: int = 700  # Silence before speech ends (longer = less cutting)
 
     @property
     def chunk_duration_ms(self) -> float:
@@ -154,14 +154,17 @@ class WhisperSTT:
                 except Exception:
                     pass
             else:
+                # Use initial_prompt to improve Chinese recognition
+                initial_prompt = "以下是普通话的句子。" if language == "zh" else None
                 segments, info = self.model.transcribe(
                     audio,
                     language=language,
                     task="transcribe",
-                    beam_size=1,  # Faster beam search
-                    best_of=1,
+                    beam_size=5,  # Better beam search for accuracy
+                    best_of=5,
                     temperature=0.0,
                     vad_filter=False,  # We handle VAD separately
+                    initial_prompt=initial_prompt
                 )
 
             # Collect segments
@@ -184,7 +187,7 @@ class AudioPipeline:
     def __init__(self, config: Optional[AudioConfig] = None):
         self.config = config or AudioConfig()
         self.vad = SileroVAD(self.config)
-        self.stt = WhisperSTT(model_size="base")
+        self.stt = WhisperSTT(model_size="small")  # Better accuracy for Chinese
 
         # State tracking
         self.is_speaking = False
