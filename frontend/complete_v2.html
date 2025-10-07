@@ -710,6 +710,7 @@
                 }
                 if (data.type === 'state') {
                     updateStatus('connected', data.value);
+                    aniState = data.value;
                 }
             };
 
@@ -984,6 +985,109 @@
             }, { passive: true, once: false });
         });
 
+        // ===== Natural Idle + Micro Gestures =====
+        // Runtime state
+        let aniState = 'connected'; // externally updated via WS 'state'
+        let idleEnabled = true;
+        let microGestureEnabled = true;
+
+        // Idle config (base subtle motion)
+        const idleCfg = {
+            chest: { amp: 0.02, freq: 1.1 }, // radians, Hz-ish
+            head: { ampYaw: 0.05, ampPitch: 0.03, freqYaw: 0.35, freqPitch: 0.28 },
+            arm: { amp: 0.05, freq: 0.8 }
+        };
+
+        // Jitter offsets to reduce periodic feeling
+        let jitter = { headYaw: 0, headPitch: 0 };
+        let jitterT = 0;
+
+        function stepJitter(delta) {
+            jitterT += delta;
+            // small random walk bounded in ±0.01 rad
+            const step = 0.0025;
+            jitter.headYaw += (Math.random() - 0.5) * step;
+            jitter.headPitch += (Math.random() - 0.5) * step;
+            jitter.headYaw = Math.max(-0.01, Math.min(0.01, jitter.headYaw));
+            jitter.headPitch = Math.max(-0.01, Math.min(0.01, jitter.headPitch));
+        }
+
+        // Micro gesture scheduler
+        let micro = { active: false, type: null, t: 0, dur: 1.0, cooldownT: 0, cooldown: 8.0 + Math.random() * 7.0 };
+        
+        // Capture base rotations to avoid drift (absolute offsets per frame)
+        const baseRot = { captured: false, chestX: 0, headX: 0, headY: 0, headZ: 0, leftArm: [0,0,0], rightArm: [0,0,0] };
+        function captureBaseRot() {
+            if (!vrm || !vrm.humanoid || baseRot.captured) return;
+            const chest = vrm.humanoid.getNormalizedBoneNode('chest');
+            const head = vrm.humanoid.getNormalizedBoneNode('head');
+            const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+            const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+            if (chest) baseRot.chestX = chest.rotation.x;
+            if (head) {
+                baseRot.headX = head.rotation.x;
+                baseRot.headY = head.rotation.y;
+                baseRot.headZ = head.rotation.z;
+            }
+            if (leftArm) baseRot.leftArm = [leftArm.rotation.x, leftArm.rotation.y, leftArm.rotation.z];
+            if (rightArm) baseRot.rightArm = [rightArm.rotation.x, rightArm.rotation.y, rightArm.rotation.z];
+            baseRot.captured = true;
+        }
+
+        function maybeStartMicroGesture() {
+            if (!microGestureEnabled || micro.active) return;
+            if (aniState === 'speaking' || currentGesture) return;
+            if (micro.cooldownT < micro.cooldown) return;
+            // 20% chance when cooldown reached
+            if (Math.random() < 0.2) {
+                const types = ['headTilt', 'nodSmall', 'handWaveSmall', 'lookAside'];
+                micro.type = types[Math.floor(Math.random() * types.length)];
+                micro.dur = 0.6 + Math.random() * 0.6;
+                micro.t = 0;
+                micro.active = true;
+                micro.cooldownT = 0;
+                micro.cooldown = 8.0 + Math.random() * 7.0;
+            }
+        }
+
+        function updateMicroGesture(delta) {
+            // advance cooldown
+            micro.cooldownT += delta;
+            if (!micro.active) {
+                maybeStartMicroGesture();
+                return;
+            }
+            micro.t += delta;
+            const p = Math.min(1.0, micro.t / micro.dur);
+            const e = Math.sin(p * Math.PI); // ease in-out
+
+            if (vrm && vrm.humanoid) {
+                const head = vrm.humanoid.getNormalizedBoneNode('head');
+                const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                switch (micro.type) {
+                    case 'headTilt':
+                        if (head && !currentGesture) head.rotation.z = baseRot.headZ + e * 0.15; // ±8.5°
+                        break;
+                    case 'nodSmall':
+                        if (head && !currentGesture) head.rotation.x = baseRot.headX + Math.sin(p * Math.PI * 2.0) * 0.12; // 小幅点头
+                        break;
+                    case 'handWaveSmall':
+                        if (rightArm && !currentGesture) rightArm.rotation.z = baseRot.rightArm[2] - Math.sin(p * Math.PI * 3.0) * 0.25;
+                        break;
+                    case 'lookAside':
+                        if (head && !currentGesture) head.rotation.y = baseRot.headY + Math.sin(p * Math.PI) * 0.18; // 左右看
+                        break;
+                }
+            }
+
+            if (micro.t >= micro.dur) {
+                // end and let idle/pose restore
+                micro.active = false;
+                micro.type = null;
+                micro.t = 0;
+            }
+        }
+
         // 动画循环
         function animate() {
             requestAnimationFrame(animate);
@@ -996,17 +1100,21 @@
                 updateExpression(delta);
                 updateBlink(delta);
                 updateGesture(delta);
+                // Idle + micro gestures
+                stepJitter(delta);
+                updateMicroGesture(delta);
 
                 if (vrm.humanoid) {
                     const chest = vrm.humanoid.getNormalizedBoneNode('chest');
                     if (chest && !currentGesture) {
-                        chest.rotation.x = Math.sin(time * 1.5) * 0.02;
+                        const f = idleCfg.chest.freq;
+                        chest.rotation.x = baseRot.chestX + Math.sin(time * f) * idleCfg.chest.amp;
                     }
 
                     const head = vrm.humanoid.getNormalizedBoneNode('head');
-                    if (head && !currentGesture) {
-                        head.rotation.y = Math.sin(time * 0.35) * 0.05;
-                        head.rotation.z = Math.cos(time * 0.28) * 0.03;
+                    if (head && !currentGesture && !micro.active) {
+                        head.rotation.y = baseRot.headY + Math.sin(time * idleCfg.head.freqYaw) * idleCfg.head.ampYaw + jitter.headYaw;
+                        head.rotation.x = baseRot.headX + Math.cos(time * idleCfg.head.freqPitch) * idleCfg.head.ampPitch + jitter.headPitch;
                     }
 
                     if (!currentGesture) {
@@ -1015,17 +1123,17 @@
 
                         if (leftArm) {
                             leftArm.rotation.set(
-                                Math.sin(time * 0.8) * 0.05,
-                                0,
-                                1.5 + Math.sin(time * 0.6) * 0.03
+                                baseRot.leftArm[0] + Math.sin(time * idleCfg.arm.freq) * idleCfg.arm.amp,
+                                baseRot.leftArm[1],
+                                baseRot.leftArm[2] + Math.sin(time * 0.6) * 0.03
                             );
                         }
 
                         if (rightArm) {
                             rightArm.rotation.set(
-                                Math.sin(time * 0.8 + Math.PI) * 0.05,
-                                0,
-                                -1.5 - Math.sin(time * 0.6) * 0.03
+                                baseRot.rightArm[0] + Math.sin(time * idleCfg.arm.freq + Math.PI) * idleCfg.arm.amp,
+                                baseRot.rightArm[1],
+                                baseRot.rightArm[2] - Math.sin(time * 0.6) * 0.03
                             );
                         }
                     }
