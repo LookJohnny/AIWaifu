@@ -498,13 +498,7 @@
             scene.add(vrm.scene);
             vrm.scene.rotation.y = Math.PI;
 
-            if (vrm.humanoid) {
-                const leftArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
-                const rightArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
-
-                if (leftArm) leftArm.rotation.set(0, 0, 1.5);
-                if (rightArm) rightArm.rotation.set(0, 0, -1.5);
-            }
+            // Do not override default arm pose; idle/micro gestures will apply subtle offsets relative to the base pose.
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('bottom-controls').style.display = 'block';
