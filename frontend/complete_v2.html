@@ -498,7 +498,23 @@
             scene.add(vrm.scene);
             vrm.scene.rotation.y = Math.PI;
 
-            // Do not override default arm pose; idle/micro gestures will apply subtle offsets relative to the base pose.
+            // Fix T-pose arms - set natural resting position
+            try {
+                if (vrm && vrm.humanoid) {
+                    const lUpper = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+                    const rUpper = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+                    const lLower = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+                    const rLower = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+
+                    // Set natural arm position (forward and down)
+                    if (lUpper) lUpper.rotation.set(0.3, 0, 0.8);    // X: forward, Z: down
+                    if (rUpper) rUpper.rotation.set(0.3, 0, -0.8);   // Mirror for right arm
+                    if (lLower) lLower.rotation.set(0, 0, 0.3);      // Slight elbow bend
+                    if (rLower) rLower.rotation.set(0, 0, -0.3);
+                }
+            } catch (e) {
+                console.warn('Failed to fix T-pose:', e);
+            }
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('bottom-controls').style.display = 'block';
