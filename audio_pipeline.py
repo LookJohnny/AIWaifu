@@ -256,7 +256,11 @@ class AudioPipeline:
                                 text = await self.stt.transcribe(audio_array, language="zh")
                                 stt_latency = (time.time() - stt_start) * 1000
 
-                                print(f"[STT] Transcribed in {stt_latency:.0f}ms: '{text}'")
+                                # Safe print with encoding error handling
+                                try:
+                                    print(f"[STT] Transcribed in {stt_latency:.0f}ms: '{text}'")
+                                except (UnicodeEncodeError, UnicodeDecodeError):
+                                    print(f"[STT] Transcribed in {stt_latency:.0f}ms: [text with encoding issues]")
 
                                 # Call final callback
                                 if on_final and text:
