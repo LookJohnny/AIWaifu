@@ -507,10 +507,10 @@
                     const rLower = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
 
                     // Set natural arm position (forward and down)
-                    if (lUpper) lUpper.rotation.set(0.3, 0, 0.8);    // X: forward, Z: down
-                    if (rUpper) rUpper.rotation.set(0.3, 0, -0.8);   // Mirror for right arm
-                    if (lLower) lLower.rotation.set(0, 0, 0.3);      // Slight elbow bend
-                    if (rLower) rLower.rotation.set(0, 0, -0.3);
+                    if (lUpper) lUpper.rotation.set(0.2, 0, 1.3);    // X: forward, Z: down more
+                    if (rUpper) rUpper.rotation.set(0.2, 0, -1.3);   // Mirror for right arm
+                    if (lLower) lLower.rotation.set(0, 0, 0.4);      // Slight elbow bend
+                    if (rLower) rLower.rotation.set(0, 0, -0.4);
                 }
             } catch (e) {
                 console.warn('Failed to fix T-pose:', e);
