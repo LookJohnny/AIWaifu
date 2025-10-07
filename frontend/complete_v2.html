@@ -506,11 +506,14 @@
                     const lLower = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
                     const rLower = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
 
-                    // Set natural arm position (forward and down)
-                    if (lUpper) lUpper.rotation.set(0.2, 0, 1.3);    // X: forward, Z: down more
-                    if (rUpper) rUpper.rotation.set(0.2, 0, -1.3);   // Mirror for right arm
-                    if (lLower) lLower.rotation.set(0, 0, 0.4);      // Slight elbow bend
-                    if (rLower) rLower.rotation.set(0, 0, -0.4);
+                    // Classic anime girl standing pose - arms naturally at sides
+                    if (lUpper) lUpper.rotation.set(-0.1, 0, 1.5);   // X: slightly back, Z: down at side
+                    if (rUpper) rUpper.rotation.set(-0.1, 0, -1.5);  // Mirror for right arm
+                    if (lLower) lLower.rotation.set(0, 0, 0.2);      // Natural elbow bend
+                    if (rLower) rLower.rotation.set(0, 0, -0.2);
+
+                    // CRITICAL: Capture the corrected base rotations for idle animation
+                    captureBaseRot();
                 }
             } catch (e) {
                 console.warn('Failed to fix T-pose:', e);
