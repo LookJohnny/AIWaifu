@@ -21,7 +21,7 @@ class TTSConfig:
     pitch: str = "+0Hz"  # Pitch (Edge TTS only)
     sample_rate: int = 24000  # Output sample rate
     format: str = "riff-24khz-16bit-mono-pcm"  # Edge output format (WAV by default)
-    use_ssml: bool = True  # Render SSML for better prosody/pauses when supported
+    use_ssml: bool = False  # Disabled: Edge TTS reads SSML tags as text instead of interpreting them
     ssml_break_ms: int = 180  # default sentence break length
     speaker_wav: Optional[str] = None  # Path to speaker WAV file (Coqui only)
 
